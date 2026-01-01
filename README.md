@@ -48,6 +48,35 @@ The core engine drives the security operations, while our intelligent AI layer h
 
 ---
 
+## 🏗️ System Architecture
+
+<div align="center">
+  <img src="https://drive.google.com/uc?export=view&id=17Vvhz9CNO_fVLpxJTH2eKSktByT3HnKt" alt="AstraGuard System Architecture" width="800">
+</div>
+
+AstraGuard AI is built on a **dual-engine architecture** that separates the heavy lifting of security operations from the intelligence of decision-making.
+
+### 1. 🛡️ Core Security Engine (The Muscle)
+*Written in Python*
+- **Role**: Executes concrete security tasks.
+- **Capabilities**:
+    - Packet manipulation (Scapy)
+    - Network scanning (Nmap integration)
+    - Payload delivery
+    - Traffic interception (Burp Suite / Proxy integration)
+- **Design**: stateless, robust, and failsafe. It does exactly what it's told, safely.
+
+### 2. 🧠 AI Intelligence Layer (The Brain)
+*Written in Python (LangChain/Ollama) & Node.js*
+- **Role**: Analyzes context and makes decisions.
+- **Capabilities**:
+    - **Attack Surface Analysis**: Reads scan data to identify "interesting" targets.
+    - **Smart Payload Generation**: Crafts payloads specific to the target stack (e.g., "This looks like an older MongoDB, try these NoSQL injections").
+    - **Risk Assessment**: Scores vulnerabilities based on real-world exploitability, not just CVSS.
+- **Privacy**: Runs **100% locally** using Ollama (Llama 3 / Mistral), ensuring sensitive scan data never leaves your machine.
+
+---
+
 ## 🤝 Project Admin Commitment
 
 As part of **ECWoC '26**, the project admins commit to:
