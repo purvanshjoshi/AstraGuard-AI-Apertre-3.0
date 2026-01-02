@@ -18,6 +18,10 @@ from enum import Enum
 from dataclasses import dataclass, asdict
 from state_machine.state_engine import MissionPhase
 
+# Import error handling
+from core.error_handling import PolicyEvaluationError, safe_execute
+from core.component_health import get_health_monitor
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,27 +85,54 @@ class MissionPhasePolicyEngine:
     
     def __init__(self, policy_config: Dict[str, Any]):
         """
-        Initialize the policy engine.
+        Initialize the policy engine with error handling.
         
         Args:
             policy_config: Dictionary with 'phases' key containing phase policies
                           Typically loaded from YAML by MissionPhasePolicyLoader
+        
+        Raises:
+            PolicyEvaluationError: If policy config is invalid
         """
-        self.policy_config = policy_config
-        self._validate_config()
-        logger.info(f"Policy engine initialized with {len(policy_config.get('phases', {}))} phases")
+        health_monitor = get_health_monitor()
+        health_monitor.register_component("policy_engine")
+        
+        try:
+            self.policy_config = policy_config
+            self._validate_config()
+            health_monitor.mark_healthy("policy_engine", {
+                "phases_loaded": len(policy_config.get('phases', {}))
+            })
+            logger.info(f"Policy engine initialized with {len(policy_config.get('phases', {}))} phases")
+        except Exception as e:
+            raise PolicyEvaluationError(
+                f"Failed to initialize policy engine: {str(e)}",
+                component="policy_engine",
+                context={"error": str(e)}
+            )
     
     def _validate_config(self):
         """Validate that the policy config has required structure."""
         if not isinstance(self.policy_config, dict):
-            raise ValueError("Policy config must be a dictionary")
+            raise PolicyEvaluationError(
+                "Policy config must be a dictionary",
+                component="policy_engine",
+                context={"config_type": str(type(self.policy_config))}
+            )
         
         if 'phases' not in self.policy_config:
-            raise ValueError("Policy config must have 'phases' key")
+            raise PolicyEvaluationError(
+                "Policy config must have 'phases' key",
+                component="policy_engine"
+            )
         
         phases = self.policy_config['phases']
         if not isinstance(phases, dict):
-            raise ValueError("Phases must be a dictionary")
+            raise PolicyEvaluationError(
+                "Phases must be a dictionary",
+                component="policy_engine",
+                context={"phases_type": str(type(phases))}
+            )
         
         # Log a warning if expected phases are missing
         expected_phases = {p.value for p in MissionPhase}

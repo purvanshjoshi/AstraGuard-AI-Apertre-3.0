@@ -128,6 +128,8 @@ We want to run this project like a real training ground. Our goal isn't just to 
 | **⚡ Real-time Stream** | Powered by Pathway for high-performance data processing. |
 | **🚀 Mission-Phase Aware Policies** | Context-sensitive fault response based on CubeSat mission phase (LAUNCH, DEPLOYMENT, NOMINAL_OPS, PAYLOAD_OPS, SAFE_MODE). |
 | **🎯 Adaptive Responses** | Same anomaly triggers different actions depending on operational phase constraints. |
+| **🛡️ Centralized Error Handling** | Graceful degradation with fallback behaviors ensures system resilience. Errors are caught, logged, and handled without cascading failures. |
+| **📈 Health Monitoring** | Real-time system health status with component-level degradation tracking exposed to dashboard. |
 
 ---
 
@@ -148,6 +150,22 @@ SAFE_MODE → Survival only (minimal active responses)
 ```
 
 **See [docs/TECHNICAL.md](docs/TECHNICAL.md) for detailed mission-phase policies and configuration.**
+
+---
+
+### 🛡️ Centralized Error Handling & Graceful Degradation
+
+AstraGuard AI includes a robust error-handling layer that ensures system resilience:
+
+- **Graceful Degradation**: Component failures activate fallback behavior instead of crashing the system
+- **Centralized Error Handling**: All errors are caught, classified, and logged with structured context
+- **Health Monitoring**: Real-time system status tracking exposed to dashboard (HEALTHY/DEGRADED/FAILED)
+- **Smart Fallbacks**: 
+  - Model loading fails? → Switch to heuristic anomaly detection
+  - Policy evaluation fails? → Return safe default decision (LOG_ONLY)
+  - State transition fails? → Revert to last known-good state
+
+**See [docs/ERROR_HANDLING_GUIDE.md](docs/ERROR_HANDLING_GUIDE.md) for implementation details and best practices.**
 
 ---
 

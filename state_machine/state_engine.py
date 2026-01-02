@@ -3,6 +3,10 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 import logging
 
+# Import error handling
+from core.error_handling import StateTransitionError, safe_execute
+from core.component_health import get_health_monitor
+
 logger = logging.getLogger(__name__)
 
 class SystemState(Enum):
@@ -58,6 +62,13 @@ class StateMachine:
         self.recovery_start_time = None
         self.recovery_duration = 5  # seconds (simulated)
         self.recovery_steps = 0
+        
+        # Register with health monitor
+        health_monitor = get_health_monitor()
+        health_monitor.register_component("state_machine", {
+            "initial_state": self.current_state.value,
+            "initial_phase": self.current_phase.value,
+        })
     
     def get_current_phase(self) -> MissionPhase:
         """Get the current mission phase."""
@@ -69,7 +80,7 @@ class StateMachine:
     
     def set_phase(self, phase: MissionPhase) -> Dict[str, Any]:
         """
-        Update the mission phase with validation.
+        Update the mission phase with validation and error handling.
         
         Args:
             phase: Target MissionPhase
@@ -78,38 +89,72 @@ class StateMachine:
             Dict with previous_phase, new_phase, success, and message
             
         Raises:
-            ValueError: If phase transition is invalid
+            StateTransitionError: If phase transition fails after retry
         """
-        if not isinstance(phase, MissionPhase):
-            raise ValueError(f"Invalid phase type: {type(phase)}")
+        health_monitor = get_health_monitor()
         
-        if self.current_phase == phase:
+        try:
+            if not isinstance(phase, MissionPhase):
+                raise StateTransitionError(
+                    f"Invalid phase type: {type(phase)}",
+                    component="state_machine",
+                    context={"phase_type": str(type(phase))}
+                )
+            
+            if self.current_phase == phase:
+                health_monitor.mark_healthy("state_machine")
+                return {
+                    "success": True,
+                    "previous_phase": self.current_phase.value,
+                    "new_phase": phase.value,
+                    "message": "Already in target phase"
+                }
+            
+            # Check if transition is valid
+            if phase not in self.PHASE_TRANSITIONS.get(self.current_phase, []):
+                raise StateTransitionError(
+                    f"Invalid phase transition: {self.current_phase.value} → {phase.value}",
+                    component="state_machine",
+                    context={
+                        "current_phase": self.current_phase.value,
+                        "target_phase": phase.value,
+                        "valid_transitions": [p.value for p in self.PHASE_TRANSITIONS.get(self.current_phase, [])]
+                    }
+                )
+            
+            previous_phase = self.current_phase
+            self.current_phase = phase
+            self.phase_start_time = datetime.now()
+            self.phase_history.append((phase, datetime.now()))
+            
+            logger.info(f"Mission phase transitioned: {previous_phase.value} → {phase.value}")
+            health_monitor.mark_healthy("state_machine", {
+                "current_phase": phase.value,
+                "previous_phase": previous_phase.value,
+            })
+            
             return {
                 "success": True,
-                "previous_phase": self.current_phase.value,
+                "previous_phase": previous_phase.value,
                 "new_phase": phase.value,
-                "message": "Already in target phase"
+                "message": f"Transitioned from {previous_phase.value} to {phase.value}"
             }
-        
-        # Check if transition is valid
-        if phase not in self.PHASE_TRANSITIONS.get(self.current_phase, []):
-            raise ValueError(
-                f"Invalid phase transition: {self.current_phase.value} → {phase.value}"
+        except StateTransitionError as e:
+            logger.error(f"State transition error: {e.message}")
+            health_monitor.mark_degraded(
+                "state_machine",
+                error_msg=e.message,
+                metadata={"error_type": "transition_invalid"}
             )
-        
-        previous_phase = self.current_phase
-        self.current_phase = phase
-        self.phase_start_time = datetime.now()
-        self.phase_history.append((phase, datetime.now()))
-        
-        logger.info(f"Mission phase transitioned: {previous_phase.value} → {phase.value}")
-        
-        return {
-            "success": True,
-            "previous_phase": previous_phase.value,
-            "new_phase": phase.value,
-            "message": f"Transitioned from {previous_phase.value} to {phase.value}"
-        }
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in set_phase: {e}")
+            health_monitor.mark_degraded(
+                "state_machine",
+                error_msg=str(e),
+                metadata={"error_type": "unexpected"}
+            )
+            raise
 
     def process_fault(self, fault_type: str, telemetry: Dict[str, Any]) -> Dict[str, str]:
         """Process a detected fault and transition state."""
