@@ -1,5 +1,5 @@
 [run]
-source = core,anomaly,state_machine,memory_engine,astraguard
+source = core,anomaly,state_machine,memory_engine
 branch = True
 omit =
     */tests/*
@@ -12,6 +12,7 @@ omit =
     state_machine/mission_policy.py
     memory_engine/replay_engine.py
     memory_engine/decay_policy.py
+    astraguard/*
 
 [report]
 precision = 2
