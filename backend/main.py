@@ -31,6 +31,7 @@ from backend.health_monitor import (
     set_health_monitor,
 )
 from backend.fallback_manager import FallbackManager
+from backend.recovery_orchestrator import RecoveryOrchestrator
 from core.component_health import SystemHealthMonitor
 
 # Configure logging
@@ -47,6 +48,7 @@ logger = logging.getLogger(__name__)
 # Initialize health monitor and fallback manager
 health_monitor: HealthMonitor = None
 fallback_manager: FallbackManager = None
+recovery_orchestrator: RecoveryOrchestrator = None
 component_health: SystemHealthMonitor = None
 
 
@@ -86,6 +88,13 @@ async def lifespan(app: FastAPI):
             heuristic_detector=None,
         )
         
+        # Initialize recovery orchestrator (Issue #17)
+        recovery_orchestrator = RecoveryOrchestrator(
+            health_monitor=health_monitor,
+            fallback_manager=fallback_manager,
+            config_path="config/recovery.yaml",
+        )
+        
         # Register health monitor with FastAPI
         set_health_monitor(health_monitor)
         
@@ -108,17 +117,26 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Component Health Monitor initialized")
         
         # Start background health polling task
-        task = asyncio.create_task(background_health_polling())
+        health_task = asyncio.create_task(background_health_polling())
         logger.info("✅ Background health polling started")
+        
+        # Start recovery orchestrator background task (Issue #17)
+        recovery_task = asyncio.create_task(recovery_orchestrator.run())
+        logger.info("✅ Recovery Orchestrator started")
         
         yield  # Application runs here
         
         # ========== SHUTDOWN ==========
         logger.info("🛑 AstraGuard AI Backend shutting down...")
         
-        task.cancel()
+        health_task.cancel()
+        recovery_task.cancel()
         try:
-            await task
+            await health_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await recovery_task
         except asyncio.CancelledError:
             pass
         
@@ -210,6 +228,7 @@ def create_app() -> FastAPI:
             "docs": "/docs",
             "health": "/health/state",
             "metrics": "/health/metrics",
+            "recovery": "/recovery/status",
         }
     
     # Status endpoint
@@ -226,6 +245,36 @@ def create_app() -> FastAPI:
             "fallback_mode": fallback_manager.get_mode_string() if fallback_manager else "unknown",
             "uptime_seconds": state.get("uptime_seconds", 0),
         }
+    
+    # Recovery Orchestrator endpoints (Issue #17)
+    @app.get("/recovery/status")
+    async def recovery_status():
+        """Get recovery orchestrator status and metrics."""
+        if not recovery_orchestrator:
+            return {"error": "Recovery orchestrator not initialized"}
+        
+        return {
+            "status": "running" if recovery_orchestrator._running else "stopped",
+            "metrics": recovery_orchestrator.get_metrics(),
+            "cooldowns": recovery_orchestrator.get_cooldown_status(),
+            "last_actions": recovery_orchestrator.get_action_history(limit=10),
+        }
+    
+    @app.get("/recovery/history")
+    async def recovery_history(limit: int = 50):
+        """Get recovery action history."""
+        if not recovery_orchestrator:
+            return {"error": "Recovery orchestrator not initialized"}
+        
+        return {"actions": recovery_orchestrator.get_action_history(limit=limit)}
+    
+    @app.get("/recovery/cooldowns")
+    async def recovery_cooldowns():
+        """Get current cooldown status for recovery actions."""
+        if not recovery_orchestrator:
+            return {"error": "Recovery orchestrator not initialized"}
+        
+        return recovery_orchestrator.get_cooldown_status()
     
     # ========== ERROR HANDLERS ==========
     

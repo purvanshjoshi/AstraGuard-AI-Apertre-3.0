@@ -1,0 +1,73 @@
+# AstraGuard AI - Recovery Orchestrator Configuration
+# Autonomous self-healing settings for Issue #17
+# Monitors health metrics and executes recovery actions
+
+# Enable/disable the recovery orchestrator
+enabled: true
+
+# Health evaluation interval (seconds)
+# How often to check metrics and trigger recovery actions
+poll_interval: 30
+
+# Recovery action thresholds
+# Actions trigger when metrics exceed these values
+thresholds:
+  # Circuit breaker stuck OPEN for this many seconds
+  circuit_open_duration: 300  # 5 minutes
+  
+  # High retry failure rate (failures per hour)
+  retry_failures_1h: 50
+  
+  # Minimum acceptable anomaly detection accuracy
+  min_anomaly_accuracy: 0.80
+  
+  # Trigger safe mode when this many components fail
+  failed_components: 2
+
+# Cooldown periods (seconds) between executing same action
+# Prevents "thrashing" - repeatedly triggering same action
+cooldowns:
+  # Time between circuit restart attempts
+  circuit_restart: 300  # 5 minutes
+  
+  # Time between cache purge operations
+  cache_purge: 600  # 10 minutes
+  
+  # Time between safe mode activations
+  safe_mode: 300  # 5 minutes
+
+# Recovery action configuration
+recovery_actions:
+  circuit_restart:
+    enabled: true
+    timeout: 30  # seconds allowed for action
+    
+  cache_purge:
+    enabled: true
+    timeout: 60  # seconds allowed for action
+    
+  safe_mode:
+    enabled: true
+    timeout: 10  # seconds allowed for action
+
+# Logging and alerting
+logging:
+  level: INFO
+  
+  # Optional: Slack webhook for critical alerts
+  # Leave empty to disable Slack notifications
+  slack_webhook: ""
+  
+  # Alert on these events (if Slack enabled)
+  slack_events:
+    - recovery_action_executed
+    - recovery_action_failed
+    - multiple_failures_detected
+
+# Advanced tuning (optional)
+# Uncomment to override defaults
+#
+# advanced:
+#   max_concurrent_actions: 1  # Don't run multiple recoveries simultaneously
+#   action_timeout_multiplier: 1.5  # Add buffer to timeouts
+#   history_retention_days: 30  # Keep action history
