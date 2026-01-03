@@ -96,7 +96,8 @@ class RedisClient:
     async def renew_leadership(self, instance_id: str, ttl: int = 30) -> bool:
         """Renew leadership TTL if currently leader.
         
-        Uses GETSET to atomically check and update.
+        Uses atomic Lua script to prevent TOCTOU race condition.
+        Script checks if key value equals instance_id, then atomically sets TTL.
         
         Args:
             instance_id: Current instance ID (must match leader)
@@ -109,14 +110,34 @@ class RedisClient:
             return False
 
         try:
-            # Get current leader
-            current_leader = await self.redis.get("astra:resilience:leader")
-            if current_leader and current_leader.decode() == instance_id:
-                # Renew TTL
-                await self.redis.expire("astra:resilience:leader", ttl)
+            # Lua script for atomic check-and-expire operation
+            # Returns 1 (true) if value matches and TTL was set
+            # Returns 0 (false) if value doesn't match
+            lua_script = """
+            if redis.call("GET", KEYS[1]) == ARGV[1] then
+                redis.call("EXPIRE", KEYS[1], ARGV[2])
+                return 1
+            else
+                return 0
+            end
+            """
+            
+            # Execute script atomically
+            result = await self.redis.eval(
+                lua_script,
+                1,  # number of keys
+                "astra:resilience:leader",  # KEYS[1]
+                instance_id,  # ARGV[1]
+                ttl,  # ARGV[2]
+            )
+            
+            renewed = bool(result)
+            if renewed:
                 logger.debug(f"Leadership renewed for {instance_id} (TTL: {ttl}s)")
-                return True
-            return False
+            else:
+                logger.debug(f"Leadership renewal failed for {instance_id} (not current leader)")
+            
+            return renewed
         except Exception as e:
             logger.error(f"Failed to renew leadership: {e}")
             return False
