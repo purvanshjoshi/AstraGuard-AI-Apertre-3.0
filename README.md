@@ -5,7 +5,7 @@
   ### ECWoC '26 Featured Project
 
   <!-- Badges -->
-  [![ECWoC '26](https://img.shields.io/badge/ECWoC-'26-blueviolet?style=for-the-badge)](https://elitecoders.xyz)
+  [![ECWoC '26](https://img.shields.io/badge/ECWoC-'26-blueviolet?style=for-the-badge)](https://code.elitecoders.xyz/profile/subhajitroy857+1)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
   [![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)](https://www.python.org/)
   [![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)](https://reactjs.org/)
