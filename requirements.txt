@@ -9,8 +9,9 @@ altair>=5.1.0
 
 # API and server
 fastapi>=0.104.0
-uvicorn>=0.24.0
+uvicorn[standard]>=0.24.0
 pydantic>=2.5.0
+httpx>=0.25.0  # For testing FastAPI with TestClient
 
 # ML and embeddings (pytorch is optional for testing)
 sentence-transformers>=2.2.0
