@@ -1,6 +1,6 @@
 'use client';
 
-import { MissionPhase } from '../../types/mission';
+import { MissionPhase } from '../../types/dashboard';
 
 interface Props {
   phases: MissionPhase[];
@@ -18,11 +18,10 @@ export const PhaseTimeline: React.FC<Props> = ({ phases }) => {
           {phases.map((phase) => (
             <div
               key={phase.name}
-              className={`h-4 rounded-full transition-all ${
-                phases.indexOf(phase) <= activeIndex
+              className={`h-4 rounded-full transition-all ${phases.indexOf(phase) <= activeIndex
                   ? 'bg-gradient-to-r from-teal-400 to-cyan-500 glow-teal shadow-lg'
                   : 'bg-gray-800/50'
-              }`}
+                }`}
               style={{ width: `${100 / phases.length}%` }}
             />
           ))}
@@ -44,11 +43,10 @@ export const PhaseTimeline: React.FC<Props> = ({ phases }) => {
         {phases.map((phase) => (
           <div
             key={phase.name}
-            className={`p-2 rounded-lg text-center text-xs transition-all ${
-              phase.isActive
+            className={`p-2 rounded-lg text-center text-xs transition-all ${phase.isActive
                 ? 'bg-teal-500/20 border-2 border-teal-400 glow-teal font-bold text-teal-300'
                 : 'bg-gray-900/50 border border-gray-700 hover:bg-gray-800'
-            }`}
+              }`}
           >
             <div className="truncate">{phase.name.split(' ')[0]}</div>
             <div className="text-lg font-bold mt-1">{phase.progress}%</div>

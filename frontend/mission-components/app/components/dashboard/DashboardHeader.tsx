@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { MissionState } from '../../types/dashboard';
+import { useDashboard } from '../../context/DashboardContext';
 
 interface Props {
   data: MissionState;
@@ -13,6 +14,7 @@ const statusIcon = (status: MissionState['status']) => {
 };
 
 export const DashboardHeader: React.FC<Props> = ({ data }) => {
+  const { isConnected } = useDashboard();
   const [time, setTime] = useState(new Date().toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
@@ -41,6 +43,12 @@ export const DashboardHeader: React.FC<Props> = ({ data }) => {
           <h1 className="text-lg font-bold font-mono text-white tracking-tight">{data.name}</h1>
         </div>
         <div className="flex items-center space-x-4 text-xs text-gray-400">
+          <span className={`px-2 py-0.5 rounded-full font-mono transition-all ${isConnected
+              ? 'bg-green-500/10 text-green-400 border border-green-500/20 glow-green'
+              : 'bg-red-500/10 text-red-500 border border-red-500/20 glow-red animate-pulse'
+            }`}>
+            {isConnected ? 'LIVE' : 'OFFLINE'}
+          </span>
           <span className="text-teal-400">{data.phase}</span>
           <span>{statusIcon(data.status)}</span>
           <span>{time}</span>

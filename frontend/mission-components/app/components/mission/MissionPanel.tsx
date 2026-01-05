@@ -1,96 +1,26 @@
-'use client';
-
-import { useState, useEffect, useRef } from 'react';
-import { Satellite, MissionPhase } from '../../types/mission';
-import { AnomalyEvent } from '../../types/anomalies';
-import missionData from '../../mocks/mission.json';
-import anomalyData from '../../mocks/anomalies.json';
+import { useState } from 'react';
 import { SatelliteCard } from './SatelliteCard';
 import { PhaseTimeline } from './PhaseTimeline';
 import { OrbitMap } from './OrbitMap';
 import { AnomalyFeed } from './AnomalyFeed';
-
-const cycleTasks: Record<string, string[]> = {
-  'sat-001': ['Data Dump', 'Status Check', 'Calibration'],
-  'sat-002': ['Orbit Adjust', 'Drift Correction', 'Standby'],
-  'sat-003': ['Imaging', 'Data Capture', 'Processing'],
-  'sat-004': ['Standby', 'Monitoring', 'Idle'],
-  'sat-005': ['Offline', 'Offline', 'Offline'],
-  'sat-006': ['Telemetry', 'Signal Boost', 'Transmission'],
-};
+import { useDashboard } from '../../context/DashboardContext';
+import { AnomalyEvent } from '../../types/dashboard';
 
 export const MissionPanel: React.FC<{ onSelectSatellite?: (satId: string) => void }> = ({ onSelectSatellite }) => {
-  const [satellites, setSatellites] = useState<Satellite[]>(missionData.satellites as Satellite[]);
-  const [phases, setPhases] = useState<MissionPhase[]>(missionData.phases as MissionPhase[]);
+  const { state, send } = useDashboard();
+  const { satellites, phases, anomalies } = state.mission;
+
   const [selectedSatId, setSelectedSatId] = useState<string | null>(null);
-  const [anomalies, setAnomalies] = useState<AnomalyEvent[]>([]);
   const [selectedAnomaly, setSelectedAnomaly] = useState<AnomalyEvent | null>(null);
-  const taskIndicesRef = useRef<Record<string, number>>({});
 
   const selectedSat = satellites.find((s) => s.id === selectedSatId) || null;
-  const anomalyTemplates = anomalyData.templates;
-
-  useEffect(() => {
-    missionData.satellites.forEach((sat) => {
-      taskIndicesRef.current[sat.id] = 0;
-    });
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSatellites((prev) =>
-        prev.map((sat) => {
-          const tasks = cycleTasks[sat.id] || ['Data Dump'];
-          taskIndicesRef.current[sat.id] = ((taskIndicesRef.current[sat.id] || 0) + 1) % tasks.length;
-          return {
-            ...sat,
-            task: tasks[taskIndicesRef.current[sat.id]],
-            latency:
-              sat.latency === 0 ? 0 : Math.max(20, sat.latency + (Math.random() - 0.5) * 20),
-          };
-        })
-      );
-
-      setPhases((prev) => {
-        const activeIdx = prev.findIndex((p) => p.isActive);
-        const nextIdx = (activeIdx + 1) % prev.length;
-        return prev.map((phase, i) => ({
-          ...phase,
-          isActive: i === nextIdx,
-          progress:
-            i === nextIdx && phase.progress < 100 ? Math.min(100, phase.progress + 2) : phase.progress,
-        }));
-      });
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // 15s anomaly generator
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const template = anomalyTemplates[Math.floor(Math.random() * anomalyTemplates.length)];
-      setAnomalies((prev) => [
-        {
-          id: `evt-${Date.now()}`,
-          satellite: template.satellite,
-          severity: template.severity as 'Critical' | 'Warning' | 'Info',
-          metric: template.metric,
-          value: template.value,
-          timestamp: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          acknowledged: false,
-        },
-        ...prev.slice(0, 19),
-      ]);
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [anomalyTemplates]);
 
   const handleAcknowledgeAnomaly = (id: string) => {
-    setAnomalies((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, acknowledged: true } : a))
-    );
+    send({
+      type: 'anomaly_ack', // Using lowercase to match types/websocket definition
+      payload: { id },
+      timestamp: new Date().toISOString()
+    });
   };
 
   return (

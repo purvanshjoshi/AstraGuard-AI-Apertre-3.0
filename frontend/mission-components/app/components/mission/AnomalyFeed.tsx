@@ -1,6 +1,6 @@
 'use client';
 
-import { AnomalyEvent } from '../../types/anomalies';
+import { AnomalyEvent } from '../../types/dashboard';
 
 interface Props {
   anomalies: AnomalyEvent[];
@@ -25,11 +25,10 @@ export const AnomalyFeed: React.FC<Props> = ({ anomalies, onAcknowledge, onSelec
         <h3 className="text-lg font-bold text-magenta-400 glow-magenta flex items-center">
           <span className="mr-2 text-xl">🚨</span> Anomaly Feed
         </h3>
-        <span className={`text-xs font-mono font-bold px-2 py-1 rounded-full transition-all ${
-          unackedCount > 0 
-            ? 'bg-magenta-500/30 text-magenta-300 glow-magenta' 
+        <span className={`text-xs font-mono font-bold px-2 py-1 rounded-full transition-all ${unackedCount > 0
+            ? 'bg-magenta-500/30 text-magenta-300 glow-magenta'
             : 'bg-green-500/20 text-green-400'
-        }`}>
+          }`}>
           {unackedCount} unacked
         </span>
       </div>
@@ -50,11 +49,10 @@ export const AnomalyFeed: React.FC<Props> = ({ anomalies, onAcknowledge, onSelec
             return (
               <div
                 key={anomaly.id}
-                className={`group p-3 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] hover:shadow-2xl ${
-                  anomaly.acknowledged
+                className={`group p-3 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] hover:shadow-2xl ${anomaly.acknowledged
                     ? 'border-gray-700/50 bg-gray-900/50 opacity-50'
                     : `${config.borderColor} ${config.bgColor}`
-                } ${isSelected ? 'ring-2 ring-teal-400/50' : ''}`}
+                  } ${isSelected ? 'ring-2 ring-teal-400/50' : ''}`}
                 onClick={() => !anomaly.acknowledged && onSelect(anomaly)}
               >
                 <div className="flex items-start gap-3">
@@ -76,9 +74,8 @@ export const AnomalyFeed: React.FC<Props> = ({ anomalies, onAcknowledge, onSelec
                     </div>
 
                     {/* Metric */}
-                    <div className={`text-base font-bold truncate ${
-                      anomaly.acknowledged ? 'line-through text-gray-500' : 'text-white'
-                    }`}>
+                    <div className={`text-base font-bold truncate ${anomaly.acknowledged ? 'line-through text-gray-500' : 'text-white'
+                      }`}>
                       {anomaly.metric}
                     </div>
 

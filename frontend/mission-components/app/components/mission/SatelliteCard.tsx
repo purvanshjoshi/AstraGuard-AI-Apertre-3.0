@@ -1,6 +1,6 @@
 'use client';
 
-import { Satellite } from '../../types/mission';
+import { Satellite } from '../../types/dashboard';
 
 interface Props extends Satellite {
   onClick?: () => void;
@@ -42,11 +42,9 @@ export const SatelliteCard: React.FC<Props> = ({
 
   return (
     <div
-      className={`group p-4 rounded-xl border-2 bg-black/30 backdrop-blur-sm cursor-pointer transition-all duration-300 hover:scale-105 hover:-translate-y-1 hover:shadow-2xl ${
-        statusConfig.glowClass
-      } ${statusConfig.borderClass} ${
-        isSelected ? `ring-4 ${statusConfig.ringClass} scale-105` : ''
-      }`}
+      className={`group p-4 rounded-xl border-2 bg-black/30 backdrop-blur-sm cursor-pointer transition-all duration-300 hover:scale-105 hover:-translate-y-1 hover:shadow-2xl ${statusConfig.glowClass
+        } ${statusConfig.borderClass} ${isSelected ? `ring-4 ${statusConfig.ringClass} scale-105` : ''
+        }`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-2">

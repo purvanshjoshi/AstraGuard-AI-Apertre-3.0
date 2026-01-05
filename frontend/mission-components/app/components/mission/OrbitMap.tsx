@@ -1,7 +1,6 @@
 'use client';
 
-import { Satellite } from '../../types/mission';
-import { AnomalyEvent } from '../../types/anomalies';
+import { Satellite, AnomalyEvent } from '../../types/dashboard';
 
 interface Props {
   satellites: Satellite[];

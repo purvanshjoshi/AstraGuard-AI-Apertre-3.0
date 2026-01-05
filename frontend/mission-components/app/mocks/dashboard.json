@@ -4,6 +4,96 @@
     "phase": "Stable Orbit",
     "status": "Nominal",
     "updated": "1:47 PM IST",
-    "anomalyCount": 0
+    "anomalyCount": 0,
+    "satellites": [
+      {
+        "id": "sat-1",
+        "name": "Voyager X",
+        "status": "Nominal",
+        "orbit": "LEO",
+        "orbitSlot": "A1",
+        "latency": 45,
+        "task": "Data Dump",
+        "signal": 98
+      },
+      {
+        "id": "sat-2",
+        "name": "Voyager Y",
+        "status": "Nominal",
+        "orbit": "GEO",
+        "orbitSlot": "B2",
+        "latency": 120,
+        "task": "Relay",
+        "signal": 95
+      },
+      {
+        "id": "sat-3",
+        "name": "Voyager Z",
+        "status": "Degraded",
+        "orbit": "MEO",
+        "orbitSlot": "M1",
+        "latency": 200,
+        "task": "Calibration",
+        "signal": 70
+      },
+      {
+        "id": "sat-4",
+        "name": "Astra A",
+        "status": "Nominal",
+        "orbit": "LEO",
+        "orbitSlot": "A2",
+        "latency": 48,
+        "task": "Imaging",
+        "signal": 99
+      },
+      {
+        "id": "sat-5",
+        "name": "Astra B",
+        "status": "Critical",
+        "orbit": "GEO",
+        "orbitSlot": "B3",
+        "latency": 500,
+        "task": "Reboot",
+        "signal": 40
+      },
+      {
+        "id": "sat-6",
+        "name": "Astra C",
+        "status": "Nominal",
+        "orbit": "LEO",
+        "orbitSlot": "A3",
+        "latency": 42,
+        "task": "Idle",
+        "signal": 97
+      }
+    ],
+    "phases": [
+      {
+        "name": "Launch",
+        "status": "complete",
+        "progress": 100,
+        "isActive": false
+      },
+      {
+        "name": "Orbit Insertion",
+        "status": "complete",
+        "progress": 100,
+        "isActive": false
+      },
+      {
+        "name": "Stable Orbit",
+        "status": "active",
+        "progress": 45,
+        "eta": "2h 30m",
+        "isActive": true
+      },
+      {
+        "name": "Deorbit",
+        "status": "pending",
+        "progress": 0,
+        "isActive": false
+      }
+    ],
+    "anomalies": []
   }
 }
