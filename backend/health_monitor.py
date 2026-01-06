@@ -29,6 +29,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.component_health import SystemHealthMonitor, HealthStatus
 from core.metrics import REGISTRY
+from core.resource_monitor import get_resource_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,7 @@ class HealthMonitor:
 
         self.fallback_mode = FallbackMode.PRIMARY
         self.component_health = SystemHealthMonitor()
+        self.resource_monitor = get_resource_monitor()
         self.start_time = datetime.utcnow()
 
         self._lock = Lock()
@@ -119,6 +121,7 @@ class HealthMonitor:
                 "system": self._get_system_health(),
                 "circuit_breaker": self._get_circuit_breaker_state(),
                 "retry": self._get_retry_metrics(),
+                "resources": self._get_resource_health(),
                 "fallback": {
                     "mode": self.fallback_mode.value,
                     "cascade_log": self._fallback_cascade_log[-10:],  # Last 10 entries
@@ -241,6 +244,30 @@ class HealthMonitor:
         """Get system uptime in seconds."""
         return (datetime.utcnow() - self.start_time).total_seconds()
 
+    def _get_resource_health(self) -> Dict[str, Any]:
+        """Get resource monitoring status."""
+        try:
+            resource_status = self.resource_monitor.check_resource_health()
+            current_metrics = self.resource_monitor.get_current_metrics()
+
+            return {
+                "status": resource_status,
+                "current_metrics": current_metrics.to_dict(),
+                "available": True
+            }
+        except Exception as e:
+            logger.error(f"Error getting resource health: {e}", exc_info=False)
+            return {
+                "status": {
+                    "cpu": "unknown",
+                    "memory": "unknown",
+                    "disk": "unknown",
+                    "overall": "unknown"
+                },
+                "current_metrics": {},
+                "available": False
+            }
+
     def record_retry_failure(self):
         """Record a retry failure for tracking."""
         with self._lock:
@@ -255,7 +282,7 @@ class HealthMonitor:
         Progressive cascade:
         1. PRIMARY: All systems healthy
         2. HEURISTIC: Circuit breaker open OR high retry failure rate
-        3. SAFE: Multiple component failures
+        3. SAFE: Multiple component failures OR resource exhaustion
 
         Args:
             state: Optional pre-computed health state (for efficiency)
@@ -269,11 +296,13 @@ class HealthMonitor:
         cb_state = state.get("circuit_breaker", {})
         retry_state = state.get("retry", {})
         system_state = state.get("system", {})
+        resource_state = state.get("resources", {})
 
         old_mode = self.fallback_mode
 
         # Determine new mode
-        if system_state.get("failed_components", 0) >= 2:
+        if (system_state.get("failed_components", 0) >= 2 or
+            resource_state.get("status", {}).get("overall") == "critical"):
             new_mode = FallbackMode.SAFE
         elif cb_state.get("state") == "OPEN" or retry_state.get("failures_1h", 0) > 50:
             new_mode = FallbackMode.HEURISTIC
@@ -289,7 +318,7 @@ class HealthMonitor:
                     "from": old_mode.value,
                     "to": new_mode.value,
                     "reason": self._get_cascade_reason(
-                        cb_state, retry_state, system_state
+                        cb_state, retry_state, system_state, resource_state
                     ),
                 }
             )
@@ -310,6 +339,7 @@ class HealthMonitor:
         cb_state: Dict[str, Any],
         retry_state: Dict[str, Any],
         system_state: Dict[str, Any],
+        resource_state: Dict[str, Any],
     ) -> str:
         """Generate detailed context reason for fallback cascade with full error details."""
         reasons = []
@@ -324,7 +354,7 @@ class HealthMonitor:
                 "failures_total": cb_state.get("failures_total", 0),
                 "consecutive_failures": cb_state.get("consecutive_failures", 0),
             }
-        
+
         # Retry failure context
         if retry_state.get("failures_1h", 0) > 50:
             failures = retry_state["failures_1h"]
@@ -335,7 +365,7 @@ class HealthMonitor:
                 "state": retry_state.get("state", "UNKNOWN"),
                 "total_attempts": retry_state.get("total_attempts", 0),
             }
-        
+
         # Component failure context
         if system_state.get("failed_components", 0) > 0:
             failed_count = system_state["failed_components"]
@@ -347,12 +377,23 @@ class HealthMonitor:
                 "total_components": system_state.get("total_components", 0),
             }
 
+        # Resource exhaustion context
+        if resource_state.get("status", {}).get("overall") == "critical":
+            reasons.append("resource_exhaustion")
+            error_context["resource_health"] = {
+                "overall_status": resource_state.get("status", {}).get("overall"),
+                "cpu_status": resource_state.get("status", {}).get("cpu"),
+                "memory_status": resource_state.get("status", {}).get("memory"),
+                "disk_status": resource_state.get("status", {}).get("disk"),
+                "available": resource_state.get("available", False),
+            }
+
         reason_str = "; ".join(reasons) if reasons else "unknown"
-        
+
         # Log cascade with full context
         if error_context:
             logger.warning(f"Fallback cascade triggered: {reason_str} | Context: {error_context}")
-        
+
         return reason_str
 
 
