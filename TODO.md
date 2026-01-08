@@ -1,68 +1,80 @@
-# Testing Suite Expansion Plan
+# AstraGuard-AI Stability Checklist Implementation
 
-## Phase 1: Environment Setup ✅ COMPLETED
-- [x] Install test dependencies (pytest-cov, pytest-asyncio, etc.)
-- [x] Verify test environment is ready
+## Current Status
+- ✅ Input Validation: Core module created, integrated into anomaly_detector.py and state_machine.py
+- ⏳ Timeout Handling: Templates provided, needs implementation
+- ⏳ Rate Limiting: Templates provided, needs implementation
+- ⏳ Retry Logic & Circuit Breaker: Templates provided, needs implementation
+- ⏳ Authentication & API Security: Templates provided, needs implementation
+- ⏳ Audit Logging: Templates provided, needs implementation
+- ⏳ Secrets Management: Partial, needs completion
 
-## Phase 2: Review Current Test Coverage
-- [ ] Run pytest with coverage to identify untested modules and lines
-- [ ] Analyze coverage report to prioritize areas needing tests
-- [ ] Document current coverage percentage
+## Next Steps (Priority Order)
 
-## Phase 3: Add Missing Unit Tests for Core Modules
-- [x] Add unit tests for core/circuit_breaker.py
-- [x] Add unit tests for core/error_handling.py
-- [ ] Add unit tests for core/component_health.py
-- [ ] Add unit tests for core/error_handling.py
-- [ ] Add unit tests for core/input_validation.py
-- [ ] Add unit tests for core/metrics.py
-- [ ] Add unit tests for core/resource_monitor.py
-- [ ] Add unit tests for core/retry.py
-- [ ] Add unit tests for core/timeout_handler.py
+### 1. Complete Input Validation Integration (30 min)
+- [x] Integrate into anomaly_detector.py
+- [x] Integrate into state_machine.py
+- [ ] Integrate into policy_engine.py
+- [ ] Write unit tests (10 tests)
+- [ ] Test end-to-end validation
 
-## Phase 4: Add Unit Tests for Backend Modules
-- [ ] Add unit tests for backend/distributed_coordinator.py
-- [ ] Add unit tests for backend/fallback_manager.py
-- [ ] Add unit tests for backend/health_monitor.py
-- [ ] Add unit tests for backend/recovery_orchestrator_enhanced.py
-- [ ] Add unit tests for backend/redis_client.py
-- [ ] Add unit tests for backend/safe_condition_parser.py
+### 2. Implement Timeout Handling (2-3 hrs)
+- [ ] Create core/timeout_handler.py (already exists, review and enhance)
+- [ ] Create core/resource_monitor.py (already exists, review and enhance)
+- [ ] Add @with_timeout to anomaly_detector
+- [ ] Add @with_timeout to policy_engine
+- [ ] Add resource checks to health_monitor
 
-## Phase 5: Enhance Existing Module Tests
-- [ ] Enhance unit tests for anomaly/anomaly_detector.py
-- [ ] Add unit tests for state_machine/state_engine.py
-- [ ] Add unit tests for security_engine/policy_engine.py
-- [ ] Add unit tests for classifier/fault_classifier.py
-- [ ] Add unit tests for config/mission_phase_policy_loader.py
-- [ ] Add unit tests for memory_engine components
+### 3. Implement Rate Limiting (2-3 hrs)
+- [ ] Create core/rate_limiter.py
+- [ ] Add rate limiting to telemetry ingestion
+- [ ] Add rate limiting to API endpoints
+- [ ] Write unit tests (6 tests)
+- [ ] Configure limits in .env
 
-## Phase 6: Implement Integration Tests for API Endpoints
-- [ ] Expand test_api.py with additional integration scenarios
-- [ ] Add end-to-end tests for complete workflows (telemetry → anomaly → recovery)
-- [ ] Test API under load and failure conditions
-- [ ] Add tests for batch operations and edge cases
+### 4. Implement Retry Logic & Circuit Breaker (3 hrs)
+- [ ] Create core/resilience.py
+- [ ] Implement CircuitBreaker class (already exists, enhance)
+- [ ] Implement @retry_with_backoff decorator (already exists, enhance)
+- [ ] Apply to unreliable operations
+- [ ] Write unit tests (8 tests)
 
-## Phase 7: Add Chaos Engineering Tests for Resilience
-- [ ] Enhance existing chaos tests with more fault injection scenarios
-- [ ] Add network partition tests
-- [ ] Add database failure simulations
-- [ ] Add service degradation tests
-- [ ] Implement chaos tests for distributed components
+### 5. Implement Authentication & API Security (4 hrs)
+- [ ] Create core/auth.py
+- [ ] Implement APIKey management
+- [ ] Implement RBAC (role-based access control)
+- [ ] Add auth middleware to API
+- [ ] Write unit tests (10 tests)
 
-## Phase 8: Increase Test Coverage to 80%+
-- [ ] Identify and test uncovered code paths
-- [ ] Add edge case and error condition tests
-- [ ] Ensure all branches and conditions are tested
-- [ ] Verify coverage reaches 80%+
+### 6. Implement Audit Logging (2 hrs)
+- [ ] Create core/audit_logger.py
+- [ ] Log access attempts (success/failure)
+- [ ] Log configuration changes
+- [ ] Log security events
+- [ ] Set up logs/audit.log rotation
 
-## Phase 9: Add Performance Benchmarking Tests
-- [ ] Expand benchmark tests with additional performance metrics
-- [ ] Add memory usage benchmarks
-- [ ] Add throughput and latency benchmarks
-- [ ] Add scalability tests
+### 7. Complete Secrets Management (2 hrs)
+- [ ] Create .env.local from .env.template
+- [ ] Create core/secrets.py (template exists, complete implementation)
+- [ ] Update all imports to use secrets.py
+- [ ] Verify no secrets in logs
+- [ ] Test secret rotation
 
-## Phase 10: Validation and Cleanup
-- [ ] Run full test suite with coverage
-- [ ] Validate chaos and performance tests
-- [ ] Update CI/CD to include new tests
-- [ ] Document test coverage improvements
+### 8. Dependency Scanning (1 hr)
+- [ ] Install safety: pip install safety
+- [ ] Run: safety check
+- [ ] Fix any vulnerabilities
+- [ ] Add to GitHub Actions CI/CD
+- [ ] Set up alerts for new CVEs
+
+## Testing & Validation
+- [ ] Run all unit tests
+- [ ] Run integration tests
+- [ ] Test end-to-end stability features
+- [ ] Update stability_checklist.py status
+- [ ] Document implementation in README
+
+## Timeline
+- Week 1: Input Validation, Timeout Handling, Rate Limiting
+- Week 2: Retry Logic, Authentication, Audit Logging
+- Week 3: Secrets Management, Dependency Scanning, Testing
