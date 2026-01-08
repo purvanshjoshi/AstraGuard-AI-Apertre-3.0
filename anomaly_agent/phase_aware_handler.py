@@ -279,6 +279,12 @@ class PhaseAwareAnomalyHandler:
         
         logger.info(f"Anomaly decision: {log_entry}")
     
+    def _record_anomaly_for_reporting(self, decision: Dict[str, Any], anomaly_metadata: Dict[str, Any]):
+        """Record anomaly for reporting and analytics purposes."""
+        # This method could store anomalies in a database, send to monitoring systems, etc.
+        # For now, we'll just log that recording occurred
+        logger.debug(f"Recorded anomaly for reporting: {decision['decision_id']}")
+    
     def _generate_decision_id(self) -> str:
         """Generate a unique decision identifier."""
         import time
