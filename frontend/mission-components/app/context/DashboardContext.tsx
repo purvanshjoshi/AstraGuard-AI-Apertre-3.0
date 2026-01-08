@@ -9,6 +9,12 @@ interface ContextValue {
     isConnected: boolean;
     send: (msg: WSMessage) => void;
     dispatch: any;
+    isReplayMode: boolean;
+    toggleReplayMode: () => void;
+    replayProgress: number;
+    setReplayProgress: (p: any) => void;
+    isPlaying: boolean;
+    togglePlay: () => void;
 }
 
 const DashboardContext = createContext<ContextValue | undefined>(undefined);

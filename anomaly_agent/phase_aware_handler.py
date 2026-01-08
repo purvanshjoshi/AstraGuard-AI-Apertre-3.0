@@ -26,6 +26,7 @@ from state_machine.mission_phase_policy_engine import (
 from config.mission_phase_policy_loader import MissionPhasePolicyLoader
 from core.metrics import ANOMALIES_BY_TYPE
 from anomaly_agent.explainability import build_explanation
+from anomaly.report_generator import get_report_generator
 
 
 logger = logging.getLogger(__name__)
@@ -171,6 +172,9 @@ class PhaseAwareAnomalyHandler:
         
         # Log the decision
         self._log_decision(decision)
+        
+        # Record anomaly for reporting
+        self._record_anomaly_for_reporting(decision, anomaly_metadata)
         
         # If escalation is needed, trigger it
         if should_escalate:
@@ -393,3 +397,45 @@ class DecisionTracer:
             'by_phase': phases,
             'by_anomaly_type': anomaly_types
         }
+    
+    def _record_anomaly_for_reporting(self, decision: Dict[str, Any], anomaly_metadata: Dict[str, Any]) -> None:
+        """
+        Record anomaly event for reporting purposes.
+        
+        Args:
+            decision: The complete decision dictionary from handle_anomaly
+            anomaly_metadata: Additional metadata about the anomaly
+        """
+        try:
+            report_generator = get_report_generator()
+            
+            # Map severity score to severity level
+            severity_score = decision.get('severity_score', 0.5)
+            if severity_score >= 0.8:
+                severity = "CRITICAL"
+            elif severity_score >= 0.6:
+                severity = "HIGH"
+            elif severity_score >= 0.4:
+                severity = "MEDIUM"
+            else:
+                severity = "LOW"
+            
+            # Prepare telemetry data (use metadata or create minimal data)
+            telemetry_data = anomaly_metadata.copy() if anomaly_metadata else {}
+            telemetry_data.update({
+                'severity_score': severity_score,
+                'detection_confidence': decision.get('detection_confidence', 0.0),
+                'recurrence_info': decision.get('recurrence_info', {})
+            })
+            
+            report_generator.record_anomaly(
+                anomaly_type=decision['anomaly_type'],
+                severity=severity,
+                confidence=decision.get('detection_confidence', 0.0),
+                mission_phase=decision['mission_phase'],
+                telemetry_data=telemetry_data,
+                explanation=decision.get('explanation')
+            )
+            
+        except Exception as e:
+            logger.warning(f"Failed to record anomaly for reporting: {e}")

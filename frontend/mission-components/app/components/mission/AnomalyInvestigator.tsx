@@ -1,0 +1,141 @@
+import React, { useState, useEffect } from 'react';
+import { AnomalyEvent } from '../../types/dashboard';
+
+interface Props {
+    anomaly: AnomalyEvent;
+    onClose: () => void;
+}
+
+interface AnalysisResult {
+    anomaly_id: string;
+    analysis: string;
+    recommendation: string;
+    confidence: number;
+}
+
+export const AnomalyInvestigator: React.FC<Props> = ({ anomaly, onClose }) => {
+    const [loading, setLoading] = useState(true);
+    const [result, setResult] = useState<AnalysisResult | null>(null);
+
+    useEffect(() => {
+        const fetchAnalysis = async () => {
+            try {
+                setLoading(true);
+                // Using port 8002 as configured
+                const res = await fetch('http://localhost:8002/api/v1/analysis/investigate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        anomaly_id: anomaly.id,
+                        context: {
+                            metric: anomaly.metric,
+                            value: anomaly.value,
+                            severity: anomaly.severity
+                        }
+                    })
+                });
+                const data = await res.json();
+                setResult(data);
+            } catch (err) {
+                console.error("Analysis failed:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchAnalysis();
+    }, [anomaly]);
+
+    return (
+        <div className="fixed inset-y-0 right-0 w-96 bg-slate-950 border-l border-slate-800 shadow-2xl z-50 transform transition-transform duration-300 flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                        <span className="text-lg">🤖</span>
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-100">AI Investigator</h3>
+                        <div className="text-[10px] text-blue-400 uppercase tracking-wider">Automated Diagnostics</div>
+                    </div>
+                </div>
+                <button
+                    onClick={onClose}
+                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                >
+                    ✕
+                </button>
+            </div>
+
+            <div className="flex-1 p-6 overflow-y-auto space-y-6">
+                {/* Context Card */}
+                <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-800 ring-1 ring-white/5">
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Anomaly Context</div>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${anomaly.severity === 'Critical' ? 'bg-red-500/10 text-red-400' : 'bg-yellow-500/10 text-yellow-400'
+                            }`}>
+                            {anomaly.severity}
+                        </span>
+                    </div>
+                    <div className="font-mono text-sm text-white mb-0.5">{anomaly.satellite}</div>
+                    <div className="text-xs text-slate-400">{anomaly.metric}</div>
+                    <div className="mt-2 pt-2 border-t border-slate-800 text-xs font-mono text-slate-300">
+                        Reading: {anomaly.value}
+                    </div>
+                </div>
+
+                {/* Loading State */}
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                        <div className="relative">
+                            <div className="w-12 h-12 rounded-full border-2 border-slate-800"></div>
+                            <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>
+                        </div>
+                        <div className="text-xs text-blue-400 animate-pulse uppercase tracking-wider font-medium">Running Diagnostics...</div>
+                    </div>
+                ) : result ? (
+                    <>
+                        {/* Analysis Section */}
+                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]"></span>
+                                Root Cause Analysis
+                            </h4>
+                            <div className="text-sm text-slate-300 leading-relaxed bg-blue-500/5 p-4 rounded-lg border border-blue-500/10 relative">
+                                {/* Decorative corner */}
+                                <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-blue-500/30 rounded-tl"></div>
+                                {result.analysis}
+                            </div>
+                        </div>
+
+                        {/* Recommendation Section */}
+                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
+                                Remediation Plan
+                            </h4>
+                            <div className="text-sm text-emerald-100/90 leading-relaxed whitespace-pre-line bg-emerald-500/5 p-4 rounded-lg border border-emerald-500/10 font-mono text-xs">
+                                {result.recommendation}
+                            </div>
+                        </div>
+
+                        {/* Confidence Footer */}
+                        <div className="pt-4 border-t border-slate-800 flex justify-between items-center text-xs text-slate-500">
+                            <span>Model: Sentinel-V2 (Mock)</span>
+                            <span className="flex items-center gap-1.5">
+                                Confidence
+                                <span className={`font-bold ${result.confidence > 0.8 ? 'text-emerald-400' : 'text-yellow-400'
+                                    }`}>
+                                    {(result.confidence * 100).toFixed(0)}%
+                                </span>
+                            </span>
+                        </div>
+                    </>
+                ) : (
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm text-center">
+                        Analysis service unavailable.
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};

@@ -1,14 +1,22 @@
 import React from 'react';
 import { AnomalyEvent } from '../../types/dashboard';
 
+
 interface Props {
   anomalies: AnomalyEvent[];
   onAcknowledge: (id: string) => void;
   onSelect: (anomaly: AnomalyEvent) => void;
+  onInvestigate: (anomaly: AnomalyEvent) => void;
   selectedSat?: string | null;
 }
 
-export const AnomalyFeed: React.FC<Props> = ({ anomalies, onAcknowledge, onSelect, selectedSat }) => {
+export const AnomalyFeed: React.FC<Props> = ({ anomalies, onAcknowledge, onSelect, onInvestigate, selectedSat }) => {
+  // ... (keep existing severityConfig and sort logic - omitting for brevity in tool call if possible, but replace_file_content needs context)
+  // Actually, replace_file_content replaces a block. I should target the Props definition first, then the specific button area.
+  // Let's do it in one go if possible, or two.
+  // The tool docs say: "StartLine and EndLine should specify a range of lines containing precisely the instances of TargetContent".
+  // I will replace the Props interface and the component signature first.
+
   // TODO: Add error handling for anomaly processing and acknowledgment failures
   // TODO: Implement caching mechanism for anomaly data to reduce API calls
   const severityConfig = {
@@ -70,15 +78,27 @@ export const AnomalyFeed: React.FC<Props> = ({ anomalies, onAcknowledge, onSelec
                   </div>
 
                   {!anomaly.acknowledged && (
-                    <button
-                      className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-xs border border-slate-700 rounded text-slate-400 hover:bg-slate-800 hover:text-white uppercase tracking-wider"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAcknowledge(anomaly.id);
-                      }}
-                    >
-                      ACK
-                    </button>
+                    <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        className="px-2 py-1 text-xs border border-blue-500/30 rounded text-blue-400 hover:bg-blue-500/20 uppercase tracking-wider flex items-center justify-center gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onInvestigate(anomaly);
+                        }}
+                        title=" AI Investigate"
+                      >
+                        <span>🔍</span>
+                      </button>
+                      <button
+                        className="px-2 py-1 text-xs border border-slate-700 rounded text-slate-400 hover:bg-slate-800 hover:text-white uppercase tracking-wider"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAcknowledge(anomaly.id);
+                        }}
+                      >
+                        ACK
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

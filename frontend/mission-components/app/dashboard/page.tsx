@@ -4,9 +4,14 @@ import { useState } from 'react';
 import { MissionState } from '../types/dashboard';
 import { DashboardHeader } from '../components/dashboard/DashboardHeader';
 import { MissionPanel } from '../components/mission/MissionPanel';
+import { AnomalyInvestigator } from '../components/mission/AnomalyInvestigator';
+import { AnomalyEvent } from '../types/dashboard';
 import dashboardData from '../mocks/dashboard.json';
 
 import { SystemsPanel } from '../components/systems/SystemsPanel';
+import { ChaosPanel } from '../components/chaos/ChaosPanel';
+import { CommandTerminal } from '../components/uplink/CommandTerminal';
+import { ReplayControls } from '../components/replay/ReplayControls';
 
 import { DashboardProvider, useDashboard } from '../context/DashboardContext';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
@@ -15,7 +20,8 @@ import { MobileNavHamburger } from '../components/ui/MobileNavHamburger';
 import { DesktopTabNav } from '../components/dashboard/DesktopTabNav';
 
 const DashboardContent: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'mission' | 'systems'>('mission');
+  const [activeTab, setActiveTab] = useState<'mission' | 'systems' | 'chaos' | 'uplink'>('mission');
+  const [selectedAnomalyForAnalysis, setSelectedAnomalyForAnalysis] = useState<AnomalyEvent | null>(null);
   const { isConnected } = useDashboard();
   const mission = dashboardData.mission as MissionState;
 
@@ -31,6 +37,10 @@ const DashboardContent: React.FC = () => {
 
           {/* Desktop: Horizontal (hidden on mobile) */}
           <DesktopTabNav activeTab={activeTab} onTabChange={setActiveTab} />
+
+          <div className="hidden md:block ml-auto">
+            <ReplayControls />
+          </div>
         </nav>
 
         <main className="flex-1 px-6 pb-8 relative">
@@ -40,13 +50,31 @@ const DashboardContent: React.FC = () => {
             <>
               {activeTab === 'mission' && (
                 <TransitionWrapper isActive={activeTab === 'mission'}>
-                  <MissionPanel />
+                  <MissionPanel onInvestigate={setSelectedAnomalyForAnalysis} />
                 </TransitionWrapper>
               )}
               {activeTab === 'systems' && (
                 <TransitionWrapper isActive={activeTab === 'systems'}>
                   <SystemsPanel />
                 </TransitionWrapper>
+              )}
+              {activeTab === 'chaos' && (
+                <TransitionWrapper isActive={activeTab === 'chaos'}>
+                  <ChaosPanel className="max-w-4xl mx-auto mt-4" />
+                </TransitionWrapper>
+              )}
+              {activeTab === 'uplink' && (
+                <TransitionWrapper isActive={activeTab === 'uplink'}>
+                  <CommandTerminal />
+                </TransitionWrapper>
+              )}
+
+              {/* AI Investigator Overlay */}
+              {selectedAnomalyForAnalysis && (
+                <AnomalyInvestigator
+                  anomaly={selectedAnomalyForAnalysis}
+                  onClose={() => setSelectedAnomalyForAnalysis(null)}
+                />
               )}
             </>
           )}

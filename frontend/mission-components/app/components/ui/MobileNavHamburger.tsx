@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 
 interface Props {
-    activeTab: 'mission' | 'systems';
-    onTabChange: (tab: 'mission' | 'systems') => void;
+    activeTab: 'mission' | 'systems' | 'chaos' | 'uplink';
+    onTabChange: (tab: 'mission' | 'systems' | 'chaos' | 'uplink') => void;
 }
 
 export const MobileNavHamburger: React.FC<Props> = ({ activeTab, onTabChange }) => {
@@ -61,6 +61,32 @@ export const MobileNavHamburger: React.FC<Props> = ({ activeTab, onTabChange }) 
                             }`}
                     >
                         ⚙️ Systems
+                    </button>
+                    <button
+                        data-mobile-tab="chaos"
+                        onClick={() => {
+                            onTabChange('chaos');
+                            setIsOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-3 rounded-xl border flex items-center gap-3 transition-all font-mono font-bold ${activeTab === 'chaos'
+                            ? 'bg-amber-500/10 border-amber-500/50 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.2)]'
+                            : 'bg-black/40 border-white/10 text-gray-400'
+                            }`}
+                    >
+                        💥 Chaos
+                    </button>
+                    <button
+                        data-mobile-tab="uplink"
+                        onClick={() => {
+                            onTabChange('uplink');
+                            setIsOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-3 rounded-xl border flex items-center gap-3 transition-all font-mono font-bold ${activeTab === 'uplink'
+                            ? 'bg-green-500/10 border-green-500/50 text-green-300 shadow-[0_0_20px_rgba(34,197,94,0.2)]'
+                            : 'bg-black/40 border-white/10 text-gray-400'
+                            }`}
+                    >
+                        📡 Uplink
                     </button>
                 </div>
             </div>

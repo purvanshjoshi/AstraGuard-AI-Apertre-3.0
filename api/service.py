@@ -6,7 +6,7 @@ FastAPI-based REST API for telemetry ingestion and anomaly detection.
 
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 from collections import deque
 from fastapi import FastAPI, HTTPException, status
@@ -15,6 +15,8 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi import FastAPI, HTTPException, status, Depends
 from contextlib import asynccontextmanager
 import secrets
+from pydantic import BaseModel
+
 
 from api.models import (
     TelemetryInput,
@@ -66,8 +68,15 @@ state_machine = None
 policy_loader = None
 phase_aware_handler = None
 memory_store = None
+latest_telemetry_data = None # Store latest telemetry for dashboard
 anomaly_history = deque(maxlen=MAX_ANOMALY_HISTORY_SIZE)  # Bounded deque prevents memory exhaustion
+active_faults = {} # Stores active chaos experiments: {fault_type: expiration_timestamp}
 start_time = time.time()
+
+class ChaosRequest(BaseModel):
+    fault_type: str
+    duration_seconds: int
+
 
 
 def initialize_components():
@@ -335,6 +344,24 @@ async def submit_telemetry(telemetry: TelemetryInput):
     """
     request_start = time.time()
     
+    # CHAROS INJECTION HOOK
+    # 1. Network Latency Injection
+    if "network_latency" in active_faults:
+        if time.time() < active_faults["network_latency"]:
+            time.sleep(2.0) # Simulate 2s latency
+        else:
+            del active_faults["network_latency"] # Expired
+
+    # 2. Model Loader Failure Injection
+    if "model_loader" in active_faults:
+        if time.time() < active_faults["model_loader"]:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Chaos Injection: Model Loader Failed"
+            )
+        else:
+            del active_faults["model_loader"] # Expired
+    
     try:
         if OBSERVABILITY_ENABLED:
             with track_request("anomaly_detection"):
@@ -376,6 +403,13 @@ async def _process_telemetry(telemetry: TelemetryInput, request_start: float) ->
         "gyro": telemetry.gyro,
         "current": telemetry.current or 0.0,
         "wheel_speed": telemetry.wheel_speed or 0.0,
+    }
+
+    # Update global latest telemetry
+    global latest_telemetry_data
+    latest_telemetry_data = {
+        "data": data,
+        "timestamp": datetime.now()
     }
 
     # Detect anomaly (uses heuristic if model not loaded)
@@ -460,6 +494,14 @@ async def _process_telemetry(telemetry: TelemetryInput, request_start: float) ->
     return response
 
 
+@app.get("/api/v1/telemetry/latest")
+async def get_latest_telemetry():
+    """Get the most recent telemetry data point."""
+    if latest_telemetry_data is None:
+        return {"data": None, "message": "No telemetry received yet"}
+    return latest_telemetry_data
+
+
 @app.post("/api/v1/telemetry/batch", response_model=BatchAnomalyResponse)
 async def submit_telemetry_batch(batch: TelemetryBatch):
     """
@@ -489,6 +531,16 @@ async def get_status():
     """Get system health and status."""
     health_monitor = get_health_monitor()
     components = health_monitor.get_all_health()
+
+    # CHAROS INJECTION HOOK: Redis Failure
+    if "redis_failure" in active_faults:
+        if time.time() < active_faults["redis_failure"]:
+            # Simulate Redis being down/degraded
+            if "memory_store" in components:
+                components["memory_store"]["status"] = "DEGRADED"
+                components["memory_store"]["details"] = "ConnectionRefusedError: Chaos Injection"
+        else:
+            del active_faults["redis_failure"] # Expired
 
     return SystemStatus(
         status="healthy" if all(
@@ -593,6 +645,162 @@ async def get_anomaly_history(
     )
 
 
+@app.post("/api/v1/chaos/inject")
+async def inject_fault(request: ChaosRequest):
+    """Trigger a chaos experiment."""
+    expiration = time.time() + request.duration_seconds
+    active_faults[request.fault_type] = expiration
+    return {"status": "injected", "fault": request.fault_type, "expires_at": expiration}
+
+
+
+class AnalysisRequest(BaseModel):
+    anomaly_id: str
+    context: dict = {}
+
+class AnalysisResponse(BaseModel):
+    anomaly_id: str
+    analysis: str
+    recommendation: str
+    confidence: float
+
+
+class UplinkCommand(BaseModel):
+    target_id: str
+    command: str
+    params: dict = {}
+
+class UplinkResponse(BaseModel):
+    status: str
+    ack_id: str
+    message: str
+    timestamp: datetime
+
+@app.post("/api/v1/uplink", response_model=UplinkResponse)
+async def send_uplink_command(cmd: UplinkCommand):
+    """
+    Send a command to a specific satellite or system.
+    """
+    # Simulate transmission delay
+    time.sleep(0.8)
+
+    ack_id = secrets.token_hex(4).upper()
+    
+    # Simple logic to generate response based on command
+    if cmd.command.upper() == "REBOOT":
+        msg = f"Reboot sequence initiated for {cmd.target_id}. Estimated downtime: 45s."
+    elif cmd.command.upper() == "DIAGNOSTICS":
+        msg = f"Diagnostics running on {cmd.target_id}. Report will be downlinked in T+120s."
+    elif cmd.command.upper() == "DEPLOY":
+        msg = f"Actuator deployment command acknowledged for {cmd.target_id}. Monitoring telemetry."
+    else:
+        msg = f"Command '{cmd.command}' queued for uplink to {cmd.target_id}."
+
+    return UplinkResponse(
+        status="sent",
+        ack_id=ack_id,
+        message=msg,
+        timestamp=datetime.now()
+    )
+
+@app.post("/api/v1/analysis/investigate", response_model=AnalysisResponse)
+
+async def investigate_anomaly(request: AnalysisRequest):
+    """
+    AI-powered anomaly investigation (Mocked for MVP).
+    Analyzes telemetry context to provide explanations and recommendations.
+    """
+    # Simulate processing delay (AI thinking)
+    time.sleep(1.5)
+    
+    context = request.context
+    metric = context.get('metric', 'Unknown')
+    value = context.get('value', 'N/A')
+    
+    # Heuristic-based "Generative" responses
+    if "Temp" in metric:
+        analysis = f"Thermal analysis indicates a rapid temperature excursion to {value}. This pattern is consistent with obstructed radiator flow or sensor bias drift."
+        recommendation = "1. Verify radiator louver positions. \n2. Check thermal sensor redundancy. \n3. Initiate cooling cycle if temp > 85°C."
+        confidence = 0.92
+    elif "Voltage" in metric or "Current" in metric:
+        analysis = f"Power subsystem detected instability ({value}). The fluctuations suggest a potential short-circuit on the secondary bus or battery cell degradation."
+        recommendation = "1. Isolate non-essential loads. \n2. Switch to backup battery logic. \n3. Monitor bus voltage for impedance changes."
+        confidence = 0.88
+    elif "Gyro" in metric:
+        analysis = "Attitude control system (ACS) reporting gyroscopic drift beyond nominal bounds. Likely caused by reaction wheel saturation or solar pressure torque."
+        recommendation = "1. Momentum dumping maneuver required. \n2. recalibrate star trackers. \n3. Switch to magnetorquer-only control temporarily."
+        confidence = 0.85
+    else:
+        analysis = f"Unusual pattern detected in {metric} ({value}). Correlation with historical anomalies suggests a transient single-event upset (SEU) in the telemetry encoder."
+        recommendation = "1. Acknowledge and monitor for recurrence. \n2. Perform soft reset of telemetry unit if persists > 5min."
+        confidence = 0.75
+
+    return AnalysisResponse(
+        anomaly_id=request.anomaly_id,
+        analysis=analysis,
+        recommendation=recommendation,
+        confidence=confidence
+    )
+
+@app.get("/api/v1/chaos/status")
+
+async def get_chaos_status():
+    """Get active chaos experiments."""
+    # Clean up expired faults
+    current_time = time.time()
+    expired = [k for k, v in active_faults.items() if current_time > v]
+    for k in expired:
+        del active_faults[k]
+        
+    return {
+        "active_faults": list(active_faults.keys()),
+        "details": active_faults
+    }
+
+
+
+@app.get("/api/v1/replay/session")
+async def get_replay_session(incident_type: str = "VOLTAGE_SPIKE"):
+    """
+    Generate a synthetic replay session (60 seconds) for a given incident type.
+    """
+    # Generate 60 points (1 per second)
+    replay_data = []
+    base_time = datetime.now() - timedelta(minutes=5)
+    
+    for i in range(60):
+        t = base_time + timedelta(seconds=i)
+        
+        # Default nominal values
+        voltage = 3.6
+        temp = 45.0
+        gyro = 0.001
+        
+        # Inject anomalies based on scenario and time (peak at 30s)
+        progress = i / 60.0
+        
+        if incident_type == "VOLTAGE_SPIKE":
+            if 20 < i < 40:
+                voltage += 1.5 * np.sin((i - 20) * 0.3) # Spike usage
+        elif incident_type == "THERMAL_RUNAWAY":
+             if i > 15:
+                 temp += (i - 15) * 1.5 # Linear increase
+        elif incident_type == "GYRO_DRIFT":
+             if i > 10:
+                 gyro += (i - 10) * 0.05
+        
+        replay_data.append({
+            "timestamp": t.isoformat(),
+            "voltage": float(voltage),
+            "temperature": float(temp),
+            "gyro": float(gyro),
+            "current": 2.1,
+            "wheel_speed": 4500.0,
+            "anomaly_score": 0.8 if (20 < i < 40) else 0.1 # Mock score
+        })
+        
+    return {"incident": incident_type, "frames": replay_data}
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8002)

@@ -6,11 +6,21 @@ import { AnomalyFeed } from './AnomalyFeed';
 import { useDashboard } from '../../context/DashboardContext';
 
 
-export const MissionPanel: React.FC = () => {
+
+interface Props {
+  onInvestigate: (anomaly: any) => void;
+}
+
+export const MissionPanel: React.FC<Props> = ({ onInvestigate }) => {
   const { state, send } = useDashboard();
   const { satellites, phases, anomalies } = state.mission;
 
   const [selectedSatId, setSelectedSatId] = useState<string | null>(null);
+
+  // ...
+
+  // Scroll down to where AnomalyFeed is rendered
+
 
 
   const selectedSat = satellites.find((s) => s.id === selectedSatId) || null;
@@ -62,6 +72,7 @@ export const MissionPanel: React.FC = () => {
             anomalies={anomalies}
             onAcknowledge={handleAcknowledgeAnomaly}
             onSelect={() => { }}
+            onInvestigate={onInvestigate}
             selectedSat={selectedSat?.orbitSlot || null}
           />
         </div>
