@@ -18,15 +18,35 @@ import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
 import { TransitionWrapper } from '../components/ui/TransitionWrapper';
 import { MobileNavHamburger } from '../components/ui/MobileNavHamburger';
 import { DesktopTabNav } from '../components/dashboard/DesktopTabNav';
+import { CommandPalette } from '../components/ui/CommandPalette';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
 const DashboardContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'mission' | 'systems' | 'chaos' | 'uplink'>('mission');
   const [selectedAnomalyForAnalysis, setSelectedAnomalyForAnalysis] = useState<AnomalyEvent | null>(null);
-  const { isConnected } = useDashboard();
+  const { isConnected, togglePlay, isReplayMode } = useDashboard();
   const mission = dashboardData.mission as MissionState;
+  const [showPalette, setShowPalette] = useState(false);
+
+  // Keyboard Shortcuts
+  useKeyboardShortcuts({
+    onTabChange: setActiveTab,
+    onTogglePlay: togglePlay,
+    onOpenPalette: () => setShowPalette(true),
+    onFocusTerminal: () => {
+      setActiveTab('uplink');
+      // Assuming Terminal takes focus on mount via autoFocus, which it does.
+    },
+    isReplayMode
+  });
 
   return (
     <div className="dashboard-container min-h-screen text-white font-mono antialiased">
+      <CommandPalette
+        isOpen={showPalette}
+        onClose={() => setShowPalette(false)}
+        onNav={setActiveTab}
+      />
       <DashboardHeader data={mission} />
 
       <div className="flex min-h-screen pt-[100px] lg:pt-[80px] flex-col">

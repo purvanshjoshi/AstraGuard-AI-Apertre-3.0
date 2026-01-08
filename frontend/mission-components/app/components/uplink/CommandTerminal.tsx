@@ -15,6 +15,14 @@ export const CommandTerminal: React.FC = () => {
     const [input, setInput] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Focus handling
+    useEffect(() => {
+        const handleFocus = () => inputRef.current?.focus();
+        window.addEventListener('focus-terminal', handleFocus);
+        return () => window.removeEventListener('focus-terminal', handleFocus);
+    }, []);
 
     const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         setInput(e.target.value);
@@ -125,6 +133,7 @@ export const CommandTerminal: React.FC = () => {
             <div className="flex items-center gap-2 text-green-400 border-t border-green-900/30 pt-2 relative z-20">
                 <span className="text-green-600 font-bold whitespace-nowrap">user@astraguard:~$</span>
                 <input
+                    ref={inputRef}
                     type="text"
                     value={input}
                     onChange={handleInput}
