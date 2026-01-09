@@ -609,12 +609,13 @@ if st.session_state.telemetry_active:
 
     # Footer
     st.markdown("---")
-    st.markdown("""
+    year = datetime.now().year
+    st.markdown(f"""
     <div style="background: rgba(10, 14, 26, 0.8); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 2rem 0; margin-top: 2rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; color: #b8b8d1;">
             <div style="font-weight: 700; color: #ffffff;">🛰️ AstraGuard Mission Control</div>
             <div style="font-size: 0.9rem;">Powered by AI-driven anomaly detection</div>
-            <div style="font-size: 0.85rem; color: #8b8ba7;">&copy; 2025 AstraGuard AI. All rights reserved.</div>
+            <div style="font-size: 0.85rem; color: #8b8ba7;">&copy; {year} AstraGuard AI. All rights reserved.</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -656,12 +657,13 @@ else:
     
     # Footer for offline state
     st.markdown("---")
-    st.markdown("""
+    year = datetime.now().year
+    st.markdown(f"""
     <div style="background: rgba(10, 14, 26, 0.8); border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 2rem 0; margin-top: 3rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; color: #b8b8d1;">
             <div style="font-weight: 700; color: #ffffff;">🛰️ AstraGuard Mission Control</div>
             <div style="font-size: 0.9rem;">Powered by AI-driven anomaly detection</div>
-            <div style="font-size: 0.85rem; color: #8b8ba7;">&copy; 2025 AstraGuard AI. All rights reserved.</div>
+            <div style="font-size: 0.85rem; color: #8b8ba7;">&copy; {year} AstraGuard AI. All rights reserved.</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
