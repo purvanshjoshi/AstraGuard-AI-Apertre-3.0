@@ -1,7 +1,7 @@
 # ===== PRODUCTION DEPENDENCIES (required for runtime) =====
 
 # Core data processing (numpy, pandas lightweight)
-numpy==1.26.4
+numpy<2.0.0
 pandas==2.1.4
 scikit-learn==1.5.2
 
