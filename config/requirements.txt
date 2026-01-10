@@ -1,7 +1,7 @@
 # ===== PRODUCTION DEPENDENCIES (required for runtime) =====
 
 # Core data processing (numpy, pandas lightweight)
-numpy==2.0.0
+numpy<2.0.0
 pandas==2.2.0
 scikit-learn==1.6.0
 
@@ -15,7 +15,7 @@ httpx>=0.28.1,<1.0
 # ML/AI (PyTorch 2.2.1 is stable and widely available for Python 3.11)
 # For GPU training locally: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 torch>=2.2.0,<3.0
-sentence-transformers==3.0.0
+sentence-transformers>=3.1.0
 
 # Observability & monitoring (Prometheus, OpenTelemetry, Jaeger, Structured Logging)
 prometheus-client==0.21.0
