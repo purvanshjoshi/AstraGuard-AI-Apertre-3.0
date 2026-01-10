@@ -659,7 +659,7 @@ async def _process_telemetry(telemetry: TelemetryInput, request_start: float) ->
 
 
 @app.get("/api/v1/telemetry/latest")
-async def get_latest_telemetry():
+async def get_latest_telemetry(api_key: APIKey = Depends(get_api_key)):
     """Get the most recent telemetry data point."""
     if latest_telemetry_data is None:
         return create_response("no_data", {"data": None, "message": "No telemetry received yet"})
@@ -822,7 +822,7 @@ async def get_anomaly_history(
 
 
 @app.post("/api/v1/chaos/inject")
-async def inject_fault(request: ChaosRequest):
+async def inject_fault(request: ChaosRequest, api_key: APIKey = Depends(require_permission("admin"))):
     """Trigger a chaos experiment."""
     return inject_chaos_fault(request.fault_type, request.duration_seconds)
 
@@ -851,7 +851,7 @@ class UplinkResponse(BaseModel):
     timestamp: datetime
 
 @app.post("/api/v1/uplink", response_model=UplinkResponse)
-async def send_uplink_command(cmd: UplinkCommand):
+async def send_uplink_command(cmd: UplinkCommand, api_key: APIKey = Depends(require_permission("write"))):
     """
     Send a command to a specific satellite or system.
     """
@@ -878,8 +878,7 @@ async def send_uplink_command(cmd: UplinkCommand):
     )
 
 @app.post("/api/v1/analysis/investigate", response_model=AnalysisResponse)
-
-async def investigate_anomaly(request: AnalysisRequest):
+async def investigate_anomaly(request: AnalysisRequest, api_key: APIKey = Depends(get_api_key)):
     """
     AI-powered anomaly investigation (Mocked for MVP).
     Analyzes telemetry context to provide explanations and recommendations.
@@ -917,7 +916,7 @@ async def investigate_anomaly(request: AnalysisRequest):
     )
 
 @app.get("/api/v1/chaos/status")
-async def get_chaos_status():
+async def get_chaos_status(api_key: APIKey = Depends(get_api_key)):
     """Get active chaos experiments."""
     cleanup_expired_faults()
     return create_response("success", {
@@ -928,7 +927,7 @@ async def get_chaos_status():
 
 
 @app.get("/api/v1/replay/session")
-async def get_replay_session(incident_type: str = "VOLTAGE_SPIKE"):
+async def get_replay_session(incident_type: str = "VOLTAGE_SPIKE", api_key: APIKey = Depends(get_api_key)):
     """
     Generate a synthetic replay session (60 seconds) for a given incident type.
     """
@@ -978,7 +977,7 @@ async def get_replay_session(incident_type: str = "VOLTAGE_SPIKE"):
 # ============================================================================
 
 @app.post("/api/v1/predictive/train")
-async def train_predictive_models():
+async def train_predictive_models(api_key: APIKey = Depends(require_permission("admin"))):
     """
     Train predictive maintenance models using collected telemetry data.
     """
@@ -1004,7 +1003,7 @@ async def train_predictive_models():
         )
 
 @app.get("/api/v1/predictive/status")
-async def get_predictive_status():
+async def get_predictive_status(api_key: APIKey = Depends(get_api_key)):
     """
     Get the status of the predictive maintenance system.
     """
@@ -1030,7 +1029,7 @@ async def get_predictive_status():
         })
 
 @app.post("/api/v1/predictive/predict")
-async def get_predictions(telemetry: TelemetryInput):
+async def get_predictions(telemetry: TelemetryInput, api_key: APIKey = Depends(get_api_key)):
     """
     Get failure predictions for current telemetry data.
     """
