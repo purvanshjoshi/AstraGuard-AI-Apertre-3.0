@@ -2267,6 +2267,52 @@ python cli.py config --validate-policies
 python cli.py test --suite smoke
 ```
 
+#### Step 9: Build the Application (Optional)
+
+AstraGuard AI provides cross-platform build scripts for automated setup:
+
+**Option A: Python Build Script (Recommended - Cross-platform)**
+
+```bash
+# Works on Windows, Linux, and macOS
+python build.py
+```
+
+**Option B: Bash Script (Linux/macOS)**
+
+```bash
+# Make executable and run
+chmod +x build.sh
+./build.sh
+```
+
+**Option C: Windows Batch Script**
+
+```batch
+# Run on Windows Command Prompt
+build.bat
+```
+
+**What the build script does:**
+- ✅ Checks for required tools (Python, npm)
+- ✅ Installs Python dependencies from `requirements.txt`
+- ✅ Builds the Next.js frontend in `frontend/as_lp/`
+- ✅ Validates all installations
+- ✅ Provides clear error messages and next steps
+
+**Manual Build (if scripts fail):**
+
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Build frontend
+cd frontend/as_lp
+npm install
+npm run build
+cd ../..
+```
+
 ### Available Commands
 
 AstraGuard AI provides a unified CLI for all operations:
