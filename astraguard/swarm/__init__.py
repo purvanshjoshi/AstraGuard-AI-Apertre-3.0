@@ -40,6 +40,12 @@ from astraguard.swarm.leader_election import LeaderElection, ElectionState, Elec
 from astraguard.swarm.consensus import ConsensusEngine, ProposalRequest, ProposalState, ConsensusMetrics, NotLeaderError
 from astraguard.swarm.policy_arbiter import PolicyArbiter, PolicyArbiterMetrics, ConflictResolution
 from astraguard.swarm.action_propagator import ActionPropagator, ActionState, ActionPropagatorMetrics
+from astraguard.swarm.response_orchestrator import (
+    SwarmResponseOrchestrator,
+    LegacyResponseOrchestrator,
+    ResponseMetrics,
+)
+from astraguard.swarm.swarm_decision_loop import Decision, DecisionType
 
 __all__ = [
     # Models (Issue #397)
@@ -106,4 +112,11 @@ __all__ = [
     "ActionPropagatorMetrics",
     "ActionCommand",
     "ActionCompleted",
+    # Response Orchestrator (Issue #412)
+    "SwarmResponseOrchestrator",
+    "LegacyResponseOrchestrator",
+    "ResponseMetrics",
+    # Swarm Decision Loop (Issue #411)
+    "Decision",
+    "DecisionType",
 ]

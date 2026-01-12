@@ -39,6 +39,13 @@ class DecisionType(Enum):
     FAILOVER = "failover"
 
 
+class ActionScope(Enum):
+    """Scope levels for action execution (#412)."""
+    LOCAL = "local"                    # Battery reboot, no coordination (0ms overhead)
+    SWARM = "swarm"                    # Role reassignment, leader approval + propagation
+    CONSTELLATION = "constellation"    # Safe mode, quorum + safety simulation
+
+
 @dataclass
 class Decision:
     """Represents a decision made by the loop."""
@@ -48,10 +55,19 @@ class Decision:
     reasoning: str             # Explanation of decision
     timestamp: datetime = field(default_factory=datetime.utcnow)
     decision_id: str = field(default="")
+    scope: ActionScope = field(default=ActionScope.LOCAL)  # Issue #412: ActionScope tagging
+    params: Dict[str, Any] = field(default_factory=dict)  # Issue #412: Action parameters
 
     def __post_init__(self):
         if not self.decision_id:
             self.decision_id = f"{self.timestamp.isoformat()}-{id(self)}"
+        # Ensure scope is ActionScope enum
+        if isinstance(self.scope, str):
+            try:
+                self.scope = ActionScope(self.scope)
+            except ValueError:
+                logger.warning(f"Invalid scope value, defaulting to LOCAL: {self.scope}")
+                self.scope = ActionScope.LOCAL
 
 
 @dataclass
