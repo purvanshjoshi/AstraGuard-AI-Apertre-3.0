@@ -56,8 +56,8 @@ def monitor_operation_resources(operation_name: Optional[str] = None):
             op_name = operation_name or func.__name__
             monitor = get_resource_monitor()
 
-            # Get initial metrics
-            initial_metrics = monitor.get_current_metrics()
+            # Get initial metrics (without adding to history)
+            initial_metrics = monitor.get_current_metrics_no_history()
 
             logger.debug(
                 f"Starting operation '{op_name}' - "
@@ -70,7 +70,7 @@ def monitor_operation_resources(operation_name: Optional[str] = None):
                 # Execute the function
                 result = func(*args, **kwargs)
 
-                # Get final metrics
+                # Get final metrics (adds to history)
                 final_metrics = monitor.get_current_metrics()
 
                 # Calculate resource usage during operation
@@ -99,7 +99,7 @@ def monitor_operation_resources(operation_name: Optional[str] = None):
                 return result
 
             except Exception as e:
-                # Log resource usage even on failure
+                # Log resource usage even on failure (adds to history)
                 final_metrics = monitor.get_current_metrics()
                 cpu_used = final_metrics.cpu_percent - initial_metrics.cpu_percent
                 memory_used = final_metrics.process_memory_mb - initial_metrics.process_memory_mb
@@ -188,35 +188,40 @@ class ResourceMonitor:
         self,
         thresholds: Optional[ResourceThresholds] = None,
         history_size: int = 100,
+        history_time_window_hours: int = 1,
         monitoring_enabled: bool = True
     ):
         """
         Initialize resource monitor.
-        
+
         Args:
             thresholds: Custom threshold configuration (uses defaults if None)
             history_size: Number of metric snapshots to retain
+            history_time_window_hours: Time window in hours to retain metrics
             monitoring_enabled: Whether monitoring is active
         """
         self.thresholds = thresholds or ResourceThresholds()
         self.history_size = history_size
+        self.history_time_window_hours = history_time_window_hours
         self.monitoring_enabled = monitoring_enabled
-        
+
         self._metrics_history: List[ResourceMetrics] = []
         self._process = psutil.Process()
-        
+
         logger.info(
             f"ResourceMonitor initialized: "
             f"cpu_warning={self.thresholds.cpu_warning}%, "
-            f"memory_warning={self.thresholds.memory_warning}%"
+            f"memory_warning={self.thresholds.memory_warning}%, "
+            f"history_size={self.history_size}, "
+            f"history_time_window={self.history_time_window_hours}h"
         )
     
     def get_current_metrics(self) -> ResourceMetrics:
         """
         Collect current resource metrics.
-        
+
         Uses interval=0 for CPU to ensure non-blocking operation.
-        
+
         Returns:
             ResourceMetrics snapshot of current system state
         """
@@ -228,27 +233,27 @@ class ResourceMonitor:
                 disk_usage_percent=0.0,
                 process_memory_mb=0.0
             )
-        
+
         try:
             # CPU usage (interval=0 for non-blocking return)
             # This returns usage since last call, which is ideal for periodic monitoring
             cpu_percent = psutil.cpu_percent(interval=0)
             # CPU usage (1 second interval for accuracy)
             cpu_percent = psutil.cpu_percent(interval=0.1)
-            
+
             # Memory usage
             memory = psutil.virtual_memory()
             memory_percent = memory.percent
             memory_available_mb = memory.available / (1024 * 1024)
-            
+
             # Disk usage
             disk = psutil.disk_usage('/')
             disk_usage_percent = disk.percent
-            
+
             # Process memory
             process_info = self._process.memory_info()
             process_memory_mb = process_info.rss / (1024 * 1024)
-            
+
             metrics = ResourceMetrics(
                 cpu_percent=cpu_percent,
                 memory_percent=memory_percent,
@@ -257,12 +262,66 @@ class ResourceMonitor:
                 process_memory_mb=process_memory_mb,
                 timestamp=datetime.now()
             )
-            
+
             # Add to history
             self._add_to_history(metrics)
-            
+
             return metrics
-            
+
+        except Exception as e:
+            logger.error(f"Error collecting resource metrics: {e}")
+            return ResourceMetrics(
+                cpu_percent=0.0,
+                memory_percent=0.0,
+                memory_available_mb=0.0,
+                disk_usage_percent=0.0,
+                process_memory_mb=0.0
+            )
+
+    def get_current_metrics_no_history(self) -> ResourceMetrics:
+        """
+        Collect current resource metrics without adding to history.
+
+        Used by operation monitoring decorator to avoid polluting history.
+
+        Returns:
+            ResourceMetrics snapshot of current system state
+        """
+        if not self.monitoring_enabled:
+            return ResourceMetrics(
+                cpu_percent=0.0,
+                memory_percent=0.0,
+                memory_available_mb=0.0,
+                disk_usage_percent=0.0,
+                process_memory_mb=0.0
+            )
+
+        try:
+            # CPU usage (interval=0 for non-blocking return)
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+
+            # Memory usage
+            memory = psutil.virtual_memory()
+            memory_percent = memory.percent
+            memory_available_mb = memory.available / (1024 * 1024)
+
+            # Disk usage
+            disk = psutil.disk_usage('/')
+            disk_usage_percent = disk.percent
+
+            # Process memory
+            process_info = self._process.memory_info()
+            process_memory_mb = process_info.rss / (1024 * 1024)
+
+            return ResourceMetrics(
+                cpu_percent=cpu_percent,
+                memory_percent=memory_percent,
+                memory_available_mb=memory_available_mb,
+                disk_usage_percent=disk_usage_percent,
+                process_memory_mb=process_memory_mb,
+                timestamp=datetime.now()
+            )
+
         except Exception as e:
             logger.error(f"Error collecting resource metrics: {e}")
             return ResourceMetrics(
@@ -274,10 +333,17 @@ class ResourceMonitor:
             )
     
     def _add_to_history(self, metrics: ResourceMetrics):
-        """Add metrics to history, maintaining size limit"""
+        """Add metrics to history, maintaining size and time limits"""
         self._metrics_history.append(metrics)
-        
-        # Trim history if exceeded size
+
+        # Clean up old entries based on time window
+        cutoff_time = datetime.now() - timedelta(hours=self.history_time_window_hours)
+        self._metrics_history = [
+            m for m in self._metrics_history
+            if m.timestamp >= cutoff_time
+        ]
+
+        # Trim history if exceeded size (after time-based cleanup)
         if len(self._metrics_history) > self.history_size:
             self._metrics_history = self._metrics_history[-self.history_size:]
     

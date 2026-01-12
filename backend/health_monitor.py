@@ -103,6 +103,7 @@ class HealthMonitor:
         self._lock = Lock()
         self._retry_failures: List[datetime] = []
         self._fallback_cascade_log: List[Dict[str, Any]] = []
+        self._cascade_log_max_size: int = 100  # Limit cascade log size to prevent memory leaks
 
         logger.info("HealthMonitor initialized")
 
@@ -312,16 +313,20 @@ class HealthMonitor:
         # Record transition
         if new_mode != old_mode:
             self.fallback_mode = new_mode
-            self._fallback_cascade_log.append(
-                {
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "from": old_mode.value,
-                    "to": new_mode.value,
-                    "reason": self._get_cascade_reason(
-                        cb_state, retry_state, system_state, resource_state
-                    ),
-                }
-            )
+            with self._lock:
+                self._fallback_cascade_log.append(
+                    {
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "from": old_mode.value,
+                        "to": new_mode.value,
+                        "reason": self._get_cascade_reason(
+                            cb_state, retry_state, system_state, resource_state
+                        ),
+                    }
+                )
+                # Trim cascade log to prevent memory leaks
+                if len(self._fallback_cascade_log) > self._cascade_log_max_size:
+                    self._fallback_cascade_log = self._fallback_cascade_log[-self._cascade_log_max_size:]
             logger.warning(f"Fallback cascade: {old_mode.value} → {new_mode.value}")
 
         # Update metrics
