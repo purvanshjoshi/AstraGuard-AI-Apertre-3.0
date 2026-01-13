@@ -84,13 +84,13 @@ class ThermalData(BaseModel):
     battery_temp: float = Field(
         ...,
         ge=-50,
-        le=80,
+        le=85,
         description="Battery temperature in Celsius"
     )
     eps_temp: float = Field(
         ...,
         ge=-50,
-        le=80,
+        le=85,
         description="Electrical Power System temperature in Celsius"
     )
     status: str = Field(

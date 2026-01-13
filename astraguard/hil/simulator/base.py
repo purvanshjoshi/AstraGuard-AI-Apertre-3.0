@@ -17,6 +17,7 @@ from ..schemas.telemetry import (
 )
 from .attitude import AttitudeSimulator
 from .power import PowerSimulator
+from .thermal import ThermalSimulator
 
 
 class SatelliteSimulator(ABC):
@@ -112,6 +113,9 @@ class StubSatelliteSimulator(SatelliteSimulator):
         
         # Power system simulator
         self.power_sim = PowerSimulator(sat_id)
+        
+        # Thermal dynamics simulator
+        self.thermal_sim = ThermalSimulator(sat_id)
     
     async def generate_telemetry(self) -> TelemetryPacket:
         """
@@ -147,20 +151,21 @@ class StubSatelliteSimulator(SatelliteSimulator):
         # Get power data
         power = self.power_sim.get_power_data()
         
-        # Thermal dynamics affected by power state
-        if self._fault_active and self._fault_type == "power_brownout":
-            thermal_status = "warning"
-            battery_temp = 25.2 + power.battery_soc * 10  # Hotter with low SOC
-        else:
-            thermal_status = "nominal"
-            battery_temp = 15.2 + power.battery_soc * 5
+        # Thermal dynamics: coupled to power state and attitude error
+        # Solar heating depends on orbital position (eclipse flag from power sim)
+        is_eclipse = power.solar_current < 0.1  # Nearly zero current = eclipse
+        solar_flux = 1366.0 if not is_eclipse else 0.0
+        attitude_error_deg = attitude.nadir_pointing_error_deg
         
-        # Thermal: battery + EPS temps
-        thermal = ThermalData(
-            battery_temp=round(battery_temp, 1),
-            eps_temp=22.1,
-            status=thermal_status
+        # Update thermal with coupled physics
+        self.thermal_sim.update(
+            dt=1.0,
+            solar_flux=solar_flux,
+            attitude_error_deg=attitude_error_deg,
+            eclipse=is_eclipse
         )
+        
+        thermal = self.thermal_sim.get_thermal_data()
         
         # Orbit: LEO parameters
         orbit = OrbitData(
@@ -206,6 +211,8 @@ class StubSatelliteSimulator(SatelliteSimulator):
         elif fault_type == "attitude_desync":
             # Attitude fault will be injected on next telemetry generation
             pass
+        elif fault_type == "thermal_runaway":
+            self.thermal_sim.inject_runaway_fault(severity)
         
         print(
             f"Sat {self.sat_id}: Injected {fault_type} fault "
