@@ -16,11 +16,11 @@ Exports:
     - LocalCoordinator: In-process coordinator for local dev/testing
 """
 
-from backend.orchestration.orchestrator_base import Orchestrator
-from backend.orchestration.coordinator import Coordinator, LocalCoordinator
-from backend.orchestration.recovery_orchestrator import RecoveryOrchestrator
-from backend.orchestration.recovery_orchestrator_enhanced import EnhancedRecoveryOrchestrator
-from backend.orchestration.distributed_coordinator import DistributedResilienceCoordinator
+from .orchestrator_base import Orchestrator
+from .coordinator import Coordinator, LocalCoordinator
+from .recovery_orchestrator import RecoveryOrchestrator
+from .recovery_orchestrator_enhanced import EnhancedRecoveryOrchestrator
+from .distributed_coordinator import DistributedResilienceCoordinator
 
 __all__ = [
     "Orchestrator",
