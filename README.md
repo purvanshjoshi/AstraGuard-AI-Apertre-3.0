@@ -74,7 +74,7 @@
   - [Mission-Phase Aware Fault Response](#-mission-phase-aware-fault-response)
   - [Error Handling & Resilience](#️-centralized-error-handling--graceful-degradation)
   - [REST API Integration](#-rest-api-for-external-integration)
-- [🎯 Project Goals (Apertre-3.0)](#-project-goals-ecwoc-26)
+- [🎯 Project Goals (Apertre-3.0)](#-project-goals-Apertre-3.0)
 - [🤝 Project Admin Commitment](#-project-admin-commitment)
 - [🧠 Mentorship & Support](#-mentorship--support)
 - [🛠️ Tech Stack](#️-tech-stack)

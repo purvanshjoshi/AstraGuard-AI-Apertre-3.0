@@ -138,7 +138,7 @@ def demo_phase4_metrics() -> None:
 
 def demo_conclusion() -> None:
     """Conclusion and summary."""
-    print_header("🎉 ECWOC26 DEMO COMPLETE")
+    print_header("🎉 Apertre-3.0 DEMO COMPLETE")
     
     print(f"\n✨ KEY ACHIEVEMENTS:")
     print(f"   ✅ Complete feedback loop (#50-54) implemented")
