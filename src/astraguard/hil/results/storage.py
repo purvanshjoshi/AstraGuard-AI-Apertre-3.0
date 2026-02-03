@@ -1,9 +1,12 @@
 """Test result persistence and retrieval."""
 
 import json
+import logging
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class ResultStorage:
@@ -32,6 +35,12 @@ class ResultStorage:
         Returns:
             Path to saved result file
         """
+        if not scenario_name or not isinstance(scenario_name, str):
+            raise ValueError(f"Invalid scenario_name: {scenario_name}")
+        
+        if not isinstance(result, dict):
+            raise ValueError(f"Result must be a dictionary, got {type(result)}")
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{scenario_name}_{timestamp}.json"
         filepath = self.results_dir / filename
@@ -43,9 +52,16 @@ class ResultStorage:
             **result,
         }
 
-        # Use asyncio.to_thread for I/O operations
-        await asyncio.to_thread(filepath.write_text, json.dumps(result_with_metadata, indent=2, default=str))
-        return str(filepath)
+        try:
+            filepath.write_text(json.dumps(result_with_metadata, indent=2, default=str))
+            logger.info(f"Saved scenario result: {filepath}")
+            return str(filepath)
+        except (OSError, IOError, PermissionError) as e:
+            logger.error(f"Failed to write result file {filepath}: {e}")
+            raise
+        except (TypeError, ValueError) as e:
+            logger.error(f"Failed to serialize result data for {scenario_name}: {e}")
+            raise
 
     async def get_scenario_results(
         self, scenario_name: str, limit: int = 10
@@ -60,6 +76,14 @@ class ResultStorage:
         Returns:
             List of result dicts (newest first)
         """
+        if not scenario_name or not isinstance(scenario_name, str):
+            logger.warning(f"Invalid scenario_name: {scenario_name}")
+            return []
+        
+        if limit <= 0:
+            logger.warning(f"Invalid limit: {limit}")
+            return []
+
         results = []
         pattern = f"{scenario_name}_*.json"
         result_files = sorted(self.results_dir.glob(pattern), reverse=True)[:limit]
@@ -68,8 +92,12 @@ class ResultStorage:
             try:
                 result_data = await asyncio.to_thread(json.loads, result_file.read_text())
                 results.append(result_data)
+            except (OSError, IOError, PermissionError) as e:
+                logger.warning(f"Failed to read result file {result_file.name}: {e}")
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                logger.warning(f"Corrupted result file {result_file.name}: {e}")
             except Exception as e:
-                print(f"[WARN] Failed to load result {result_file.name}: {e}")
+                logger.error(f"Unexpected error loading result {result_file.name}: {e}")
 
         return results
 
@@ -83,6 +111,10 @@ class ResultStorage:
         Returns:
             List of campaign summary dicts (newest first)
         """
+        if limit <= 0:
+            logger.warning(f"Invalid limit: {limit}")
+            return []
+
         campaigns = []
         campaign_files = sorted(
             self.results_dir.glob("campaign_*.json"), reverse=True
@@ -92,8 +124,12 @@ class ResultStorage:
             try:
                 campaign_data = json.loads(campaign_file.read_text())
                 campaigns.append(campaign_data)
+            except (OSError, IOError, PermissionError) as e:
+                logger.warning(f"Failed to read campaign file {campaign_file.name}: {e}")
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                logger.warning(f"Corrupted campaign file {campaign_file.name}: {e}")
             except Exception as e:
-                print(f"[WARN] Failed to load campaign {campaign_file.name}: {e}")
+                logger.error(f"Unexpected error loading campaign {campaign_file.name}: {e}")
 
         return campaigns
 
@@ -107,14 +143,24 @@ class ResultStorage:
         Returns:
             Campaign summary dict or None if not found
         """
+        if not campaign_id or not isinstance(campaign_id, str):
+            logger.warning(f"Invalid campaign_id: {campaign_id}")
+            return None
+
         campaign_file = self.results_dir / f"campaign_{campaign_id}.json"
         if not campaign_file.exists():
             return None
 
         try:
             return json.loads(campaign_file.read_text())
+        except (OSError, IOError, PermissionError) as e:
+            logger.error(f"Failed to read campaign {campaign_id}: {e}")
+            return None
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logger.error(f"Corrupted campaign file {campaign_id}: {e}")
+            return None
         except Exception as e:
-            print(f"[ERROR] Failed to load campaign {campaign_id}: {e}")
+            logger.error(f"Unexpected error loading campaign {campaign_id}: {e}")
             return None
 
     def get_result_statistics(self) -> Dict[str, Any]:
@@ -154,14 +200,24 @@ class ResultStorage:
         Returns:
             Number of files deleted
         """
+        if older_than_days <= 0:
+            logger.warning(f"Invalid age threshold: {older_than_days}")
+            return 0
+
         from time import time
 
         cutoff_time = time() - (older_than_days * 86400)
         deleted_count = 0
 
         for result_file in self.results_dir.glob("*.json"):
-            if result_file.stat().st_mtime < cutoff_time:
-                result_file.unlink()
-                deleted_count += 1
+            try:
+                if result_file.stat().st_mtime < cutoff_time:
+                    result_file.unlink()
+                    deleted_count += 1
+            except (OSError, IOError, PermissionError) as e:
+                logger.warning(f"Failed to delete file {result_file.name}: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error deleting file {result_file.name}: {e}")
 
+        logger.info(f"Cleanup completed: deleted {deleted_count} files older than {older_than_days} days")
         return deleted_count

@@ -70,7 +70,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r config/requirements-ci.txt
+          pip install -r src/config/requirements-ci.txt
           pip install pytest pytest-asyncio pytest-cov httpx docker
       
       - name: Start Docker Daemon
@@ -78,10 +78,10 @@ jobs:
       
       - name: Start Swarm Constellation
         run: |
-          docker-compose -f docker-compose.swarm.yml up -d
+          docker compose -f infra/docker/docker-compose.swarm.yml up -d --build
           echo "Waiting for services to be healthy..."
           sleep 10
-          docker-compose -f docker-compose.swarm.yml ps
+          docker compose -f infra/docker/docker-compose.swarm.yml ps
       
       - name: Run Chaos Scenario - ${{ matrix.description }}
         run: |
@@ -97,7 +97,7 @@ jobs:
           mkdir -p chaos-artifacts
           
           # Docker logs
-          docker-compose -f docker-compose.swarm.yml logs > chaos-artifacts/docker-${{ matrix.scenario }}.log || true
+          docker compose -f infra/docker/docker-compose.swarm.yml logs > chaos-artifacts/docker-${{ matrix.scenario }}.log || true
           
           # Prometheus metrics snapshot
           curl -s http://localhost:9090/api/v1/query?query=chaos:consensus_rate \
@@ -109,7 +109,7 @@ jobs:
       - name: Generate Coverage Report
         run: |
           pytest tests/swarm/chaos/ \
-            --cov=astraguard \
+            --cov=src/astraguard \
             --cov=tests.swarm.chaos \
             --cov-report=term-missing \
             --cov-report=xml:coverage-${{ matrix.scenario }}.xml \
@@ -132,7 +132,7 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker-compose -f docker-compose.swarm.yml down -v || true
+          docker compose -f infra/docker/docker-compose.swarm.yml down -v || true
 
   chaos-summary:
     name: Chaos Test Summary
@@ -194,7 +194,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r config/requirements-ci.txt
+          pip install -r src/config/requirements-ci.txt
           pip install pytest pytest-asyncio httpx docker
       
       - name: Start Docker
@@ -209,13 +209,13 @@ jobs:
             echo ""
             echo "=== Iteration $iteration/5 ==="
             
-            docker-compose -f docker-compose.swarm.yml up -d
+            docker compose -f infra/docker/docker-compose.swarm.yml up -d --build
             sleep 10
             
             python -m pytest tests/swarm/chaos/test_chaos_suite.py \
               --tb=short --timeout=600 -v 2>&1 | tee chaos-iteration-$iteration.log
             
-            docker-compose -f docker-compose.swarm.yml down -v
+            docker compose -f infra/docker/docker-compose.swarm.yml down -v
             sleep 5
           done
       
@@ -245,4 +245,4 @@ jobs:
       
       - name: Cleanup
         if: always()
-        run: docker-compose -f docker-compose.swarm.yml down -v || true
+        run: docker-compose -f infra/docker/docker-compose.swarm.yml down -v || true

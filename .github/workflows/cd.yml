@@ -59,9 +59,9 @@ jobs:
 
     - name: Deploy AstraGuard using Helm
       run: |
-        helm upgrade --install astraguard ./helm/astraguard \
+        helm upgrade --install astraguard infra/helm/astraguard \
           --namespace astraguard \
-          --values helm/astraguard/values.yaml \
+          --values infra/helm/astraguard/values.yaml \
           --set astraGuard.image.tag=${{ github.sha }} \
           --wait \
           --timeout 10m
@@ -120,9 +120,9 @@ jobs:
 
     - name: Deploy to inactive color
       run: |
-        helm upgrade --install astraguard-${{ steps.color.outputs.color }} ./helm/astraguard \
+        helm upgrade --install astraguard-${{ steps.color.outputs.color }} infra/helm/astraguard \
           --namespace astraguard \
-          --values helm/astraguard/values.yaml \
+          --values infra/helm/astraguard/values.yaml \
           --set blueGreen.enabled=true \
           --set blueGreen.activeColor=${{ steps.color.outputs.color }} \
           --set astraGuard.image.tag=${{ github.sha }} \
@@ -165,4 +165,4 @@ jobs:
       if: failure()
       run: |
         echo "Deployment failed, rolling back..."
-        kubectl patch service astra-guard -n astraguard --type='json' -p='[{"op": "replace", "path": "/spec/selector/color", "value": "${{ steps.color.outputs.color == 'blue' && 'green' || 'blue }}"}]'
+        kubectl patch service astra-guard -n astraguard --type='json' -p='[{"op": "replace", "path": "/spec/selector/color", "value": "${{ steps.color.outputs.color == "blue" && "green" || "blue" }}"}]'

@@ -141,3 +141,58 @@ class HealthCheckResponse(BaseModel):
     mission_phase: Optional[str] = None
     components_status: Optional[Dict[str, Dict[str, Any]]] = None
     error: Optional[str] = None
+
+
+class UserCreateRequest(BaseModel):
+    """Request to create a new user."""
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=8)
+    role: UserRole = UserRole.ANALYST
+    email: Optional[str] = None
+
+
+class UserResponse(BaseModel):
+    """Response model for user data."""
+    id: str
+    username: str
+    role: UserRole
+    email: Optional[str] = None
+    created_at: datetime
+    is_active: bool
+
+
+class APIKeyCreateRequest(BaseModel):
+    """Request to create a new API key."""
+    name: str = Field(..., min_length=1, max_length=50)
+    scopes: List[str] = Field(default_factory=list)
+    expires_in_days: Optional[int] = Field(None, ge=1, le=365)
+
+
+class APIKeyResponse(BaseModel):
+    """Response model for API key metadata (without secret)."""
+    id: str
+    name: str
+    prefix: str
+    user_id: str
+    scopes: List[str]
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+    last_used_at: Optional[datetime] = None
+    is_active: bool
+
+
+class APIKeyCreateResponse(APIKeyResponse):
+    """Response model for newly created API key (includes secret)."""
+    secret_key: str
+
+
+class LoginRequest(BaseModel):
+    """Request to login."""
+    username: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    """Response with access token."""
+    access_token: str
+    token_type: str = "bearer"
