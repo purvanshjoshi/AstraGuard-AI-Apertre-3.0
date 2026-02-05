@@ -40,10 +40,11 @@ class ResultStorage:
         self.results_dir: Path = Path(results_dir)
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
-    async def save_scenario_result(
+    def save_scenario_result(
         self, scenario_name: str, result: Dict[str, Any]
     ) -> str:
-        """Save individual scenario result to file asynchronously.
+        """
+        Save individual scenario result to file.
 
         Args:
             scenario_name (str): Name of scenario (without .yaml).
@@ -84,10 +85,11 @@ class ResultStorage:
             logger.error(f"Failed to serialize result data for {scenario_name}: {e}")
             raise
 
-    async def get_scenario_results(
+    def get_scenario_results(
         self, scenario_name: str, limit: int = 10
     ) -> List[Dict[str, Any]]:
-        """Retrieve recent results for a specific scenario asynchronously.
+        """
+        Retrieve recent results for a specific scenario.
 
         Args:
             scenario_name (str): Name of scenario.

@@ -12,6 +12,25 @@ from typing import Dict, Any
 from astraguard.hil.results.storage import ResultStorage
 
 
+@pytest.fixture
+def results_storage():
+    """Create temporary storage instance for testing."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield ResultStorage(results_dir=temp_dir)
+
+
+@pytest.fixture
+def sample_result():
+    """Sample result data for testing."""
+    return {
+        "success": True,
+        "execution_time_s": 5.2,
+        "simulated_time_s": 100,
+        "metrics": {"cpu_usage": 45.2}
+    }
+
+
+
 class TestResultStorageInitialization:
     """Test ResultStorage initialization and setup."""
 
@@ -80,13 +99,12 @@ class TestSaveScenarioResult:
         assert "timestamp" in saved_data
         assert saved_data["metrics"]["cpu_usage"] == 45.2
 
-    @pytest.mark.asyncio
-    async def test_save_scenario_result_with_metadata(self, results_storage, sample_result):
+    def test_save_scenario_result_with_metadata(self, results_storage, sample_result):
         """Test that saved result includes required metadata."""
         # Modify sample_result for this specific test if needed, or use a new one
         result_with_error = {"success": False, "error": "Test error"}
         
-        filepath = await results_storage.save_scenario_result("metadata_test", result_with_error)
+        filepath = results_storage.save_scenario_result("metadata_test", result_with_error)
         saved_data = json.loads(Path(filepath).read_text())
         
         # Check metadata fields
@@ -99,20 +117,18 @@ class TestSaveScenarioResult:
         timestamp = saved_data["timestamp"]
         datetime.fromisoformat(timestamp)  # Should not raise exception
 
-    @pytest.mark.asyncio
-    async def test_save_scenario_result_filename_format(self, results_storage, sample_result):
+    def test_save_scenario_result_filename_format(self, results_storage, sample_result):
         """Test that filename follows expected format."""
         with patch('astraguard.hil.results.storage.datetime') as mock_datetime:
             mock_datetime.now.return_value.strftime.return_value = "20240101_120000"
             mock_datetime.now.return_value.isoformat.return_value = "2024-01-01T12:00:00"
             
-            filepath = await results_storage.save_scenario_result("format_test", sample_result)
+            filepath = results_storage.save_scenario_result("format_test", sample_result)
             
             expected_filename = "format_test_20240101_120000.json"
             assert Path(filepath).name == expected_filename
 
-    @pytest.mark.asyncio
-    async def test_save_scenario_result_complex_data(self, results_storage):
+    def test_save_scenario_result_complex_data(self, results_storage):
         """Test saving complex nested data structures."""
         result = {
             "success": True,
@@ -133,7 +149,7 @@ class TestSaveScenarioResult:
             }
         }
         
-        filepath = await results_storage.save_scenario_result("complex_test", result)
+        filepath = results_storage.save_scenario_result("complex_test", result)
         saved_data = json.loads(Path(filepath).read_text())
         
         # Verify complex data preservation
@@ -141,18 +157,16 @@ class TestSaveScenarioResult:
         assert saved_data["metrics"]["satellites"][0]["altitude"] == 400.5
         assert saved_data["metrics"]["performance"]["cpu_usage"] == [10.2, 15.3, 12.1]
 
-    @pytest.mark.asyncio
-    async def test_save_scenario_result_special_characters(self, results_storage, sample_result):
+    def test_save_scenario_result_special_characters(self, results_storage, sample_result):
         """Test saving scenario with special characters in name."""
         # Test with underscores, hyphens, numbers
         scenario_name = "test_scenario-v2_final"
-        filepath = await results_storage.save_scenario_result(scenario_name, sample_result)
+        filepath = results_storage.save_scenario_result(scenario_name, sample_result)
         
         assert scenario_name in filepath
         assert Path(filepath).exists()
 
-    @pytest.mark.asyncio
-    async def test_save_scenario_result_json_serialization(self, results_storage):
+    def test_save_scenario_result_json_serialization(self, results_storage):
         """Test JSON serialization with default=str for complex objects."""
         from datetime import datetime
         
@@ -162,7 +176,7 @@ class TestSaveScenarioResult:
             "path_obj": Path("/test/path")
         }
         
-        filepath = await results_storage.save_scenario_result("serialization_test", result)
+        filepath = results_storage.save_scenario_result("serialization_test", result)
         saved_data = json.loads(Path(filepath).read_text())
         
         # Objects should be converted to strings
@@ -174,7 +188,7 @@ class TestGetScenarioResults:
     """Test retrieving scenario results."""
 
     @pytest.fixture
-    async def temp_storage_with_data(self, results_storage):
+    def temp_storage_with_data(self, results_storage):
         """Create storage with sample data."""
         # Create sample result files
         results = [
@@ -199,10 +213,9 @@ class TestGetScenarioResults:
         
         yield results_storage
 
-    @pytest.mark.asyncio
-    async def test_get_scenario_results_basic(self, temp_storage_with_data):
+    def test_get_scenario_results_basic(self, temp_storage_with_data):
         """Test basic scenario result retrieval."""
-        results = await temp_storage_with_data.get_scenario_results("test_scenario")
+        results = temp_storage_with_data.get_scenario_results("test_scenario")
         
         assert isinstance(results, list)
         assert len(results) == 3
@@ -213,35 +226,31 @@ class TestGetScenarioResults:
             assert "timestamp" in result
             assert "success" in result
 
-    @pytest.mark.asyncio
-    async def test_get_scenario_results_ordering(self, temp_storage_with_data):
+    def test_get_scenario_results_ordering(self, temp_storage_with_data):
         """Test that results are returned in newest-first order."""
-        results = await temp_storage_with_data.get_scenario_results("test_scenario")
+        results = temp_storage_with_data.get_scenario_results("test_scenario")
         
         # Should be ordered by filename (newest first)
         timestamps = [result["timestamp"] for result in results]
         assert timestamps == sorted(timestamps, reverse=True)
 
-    @pytest.mark.asyncio
-    async def test_get_scenario_results_limit(self, temp_storage_with_data):
+    def test_get_scenario_results_limit(self, temp_storage_with_data):
         """Test limit parameter."""
-        results = await temp_storage_with_data.get_scenario_results("test_scenario", limit=2)
+        results = temp_storage_with_data.get_scenario_results("test_scenario", limit=2)
         
         assert len(results) == 2
         
         # Should get the 2 newest results
-        all_results = await temp_storage_with_data.get_scenario_results("test_scenario", limit=10)
+        all_results = temp_storage_with_data.get_scenario_results("test_scenario", limit=10)
         assert results == all_results[:2]
 
-    @pytest.mark.asyncio
-    async def test_get_scenario_results_nonexistent(self, results_storage):
+    def test_get_scenario_results_nonexistent(self, results_storage):
         """Test retrieving results for non-existent scenario."""
-        results = await results_storage.get_scenario_results("nonexistent_scenario")
+        results = results_storage.get_scenario_results("nonexistent_scenario")
         
         assert results == []
 
-    @pytest.mark.asyncio
-    async def test_get_scenario_results_corrupted_file(self, results_storage):
+    def test_get_scenario_results_corrupted_file(self, results_storage):
         """Test handling of corrupted JSON files."""
         # Create a corrupted JSON file
         corrupted_file = results_storage.results_dir / "test_scenario_20240101_120000.json"
@@ -257,14 +266,13 @@ class TestGetScenarioResults:
         valid_file.write_text(json.dumps(valid_data))
         
         # Should skip corrupted file and return valid ones
-        results = await results_storage.get_scenario_results("test_scenario")
+        results = results_storage.get_scenario_results("test_scenario")
         assert len(results) == 1
         assert results[0]["success"] is True
 
-    @pytest.mark.asyncio
-    async def test_get_scenario_results_empty_directory(self, results_storage):
+    def test_get_scenario_results_empty_directory(self, results_storage):
         """Test retrieving results from empty directory."""
-        results = await results_storage.get_scenario_results("any_scenario")
+        results = results_storage.get_scenario_results("any_scenario")
         
         assert results == []
 
@@ -552,8 +560,7 @@ class TestClearResults:
 class TestIntegrationScenarios:
     """Test integration scenarios and edge cases."""
 
-    @pytest.mark.asyncio
-    async def test_full_workflow_integration(self, results_storage):
+    def test_full_workflow_integration(self, results_storage):
         """Test complete workflow from save to retrieve to clear."""
         # Save multiple scenario results with delays to ensure unique timestamps
         import time
@@ -567,19 +574,19 @@ class TestIntegrationScenarios:
         saved_paths = []
         for i, (scenario, result) in enumerate(zip(scenarios, results)):
             if i > 0:
-                time.sleep(0.01)  # Ensure different timestamps
-            path = await results_storage.save_scenario_result(scenario, result)
+                time.sleep(1.1)  # Ensure different timestamps (seconds precision)
+            path = results_storage.save_scenario_result(scenario, result)
             saved_paths.append(path)
         
         # Verify all files were created
         assert all(Path(path).exists() for path in saved_paths)
         
         # Retrieve results for scenario_a (should have 2 results)
-        scenario_a_results = await results_storage.get_scenario_results("scenario_a")
+        scenario_a_results = results_storage.get_scenario_results("scenario_a")
         assert len(scenario_a_results) == 2
         
         # Retrieve results for scenario_b (should have 1 result)
-        scenario_b_results = await results_storage.get_scenario_results("scenario_b")
+        scenario_b_results = results_storage.get_scenario_results("scenario_b")
         assert len(scenario_b_results) == 1
         
         # Get statistics
@@ -590,32 +597,30 @@ class TestIntegrationScenarios:
         deleted = results_storage.clear_results(older_than_days=1)
         assert deleted == 0
 
-    @pytest.mark.asyncio
-    async def test_concurrent_access_simulation(self, results_storage):
+    def test_concurrent_access_simulation(self, results_storage):
         """Test behavior under simulated concurrent access."""
         # Simulate multiple saves happening with sufficient delays
         import time
         results = []
         for i in range(5):
             result = {"success": True, "iteration": i}
-            path = await results_storage.save_scenario_result("concurrent_test", result)
+            path = results_storage.save_scenario_result("concurrent_test", result)
             results.append(path)
-            time.sleep(0.01)  # Ensure different timestamps (seconds precision)
+            time.sleep(1.1)  # Ensure different timestamps (seconds precision)
         
         # Verify all files were created with unique names
         assert len(set(results)) == 5  # All paths should be unique
         assert all(Path(path).exists() for path in results)
         
         # Retrieve and verify ordering
-        retrieved = await results_storage.get_scenario_results("concurrent_test")
+        retrieved = results_storage.get_scenario_results("concurrent_test")
         assert len(retrieved) == 5
         
         # Should be in reverse chronological order
         iterations = [r["iteration"] for r in retrieved]
         assert iterations == [4, 3, 2, 1, 0]
 
-    @pytest.mark.asyncio
-    async def test_large_result_handling(self, results_storage):
+    def test_large_result_handling(self, results_storage):
         """Test handling of large result data."""
         # Create a large result with nested data
         large_result = {
@@ -635,7 +640,7 @@ class TestIntegrationScenarios:
         }
         
         # Save and retrieve large result
-        path = await results_storage.save_scenario_result("large_test", large_result)
+        path = results_storage.save_scenario_result("large_test", large_result)
         assert Path(path).exists()
         
         # Verify file size is reasonable (should be substantial)
@@ -643,13 +648,12 @@ class TestIntegrationScenarios:
         assert file_size > 1000
         
         # Retrieve and verify data integrity
-        retrieved = await results_storage.get_scenario_results("large_test")
+        retrieved = results_storage.get_scenario_results("large_test")
         assert len(retrieved) == 1
         assert len(retrieved[0]["telemetry_data"]) == 1000
         assert len(retrieved[0]["satellite_states"]) == 50
 
-    @pytest.mark.asyncio
-    async def test_error_recovery_scenarios(self):
+    def test_error_recovery_scenarios(self):
         """Test error recovery and graceful degradation."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test with read-only directory (simulate permission error)
@@ -670,7 +674,7 @@ class TestIntegrationScenarios:
                 # Should handle read-only gracefully
                 # If get_scenario_results fails to write/read it should log and return something safe or raise specific error
                 # Based on code: it catches specific errors and logs warning
-                results = await readonly_storage.get_scenario_results("test")
+                results = readonly_storage.get_scenario_results("test")
                 # Ensure it didn't crash
                 
             finally:

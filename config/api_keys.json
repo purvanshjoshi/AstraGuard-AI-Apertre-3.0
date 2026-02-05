@@ -1,0 +1,19 @@
+{
+  "keys": [
+    {
+      "key": "28kL3RHlEwtLT38KoNpyirxP4QeHhuwSt9mJtKd1cKg",
+      "name": "default-dev-key",
+      "created_at": "2026-02-05T00:47:10.195486",
+      "expires_at": null,
+      "permissions": [
+        "write",
+        "read"
+      ],
+      "rate_limit": 1000,
+      "is_active": true,
+      "metadata": {
+        "environment": "development"
+      }
+    }
+  ]
+}

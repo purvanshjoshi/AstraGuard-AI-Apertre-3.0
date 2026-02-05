@@ -480,7 +480,7 @@ async def health_check():
 
         # Determine overall status
         all_healthy = all(
-            c.get("status") == "HEALTHY" for c in components.values()
+            c.get("status") == "healthy" for c in components.values()
         )
 
         # Get system uptime
@@ -677,22 +677,31 @@ async def _process_telemetry(telemetry: TelemetryInput, request_start: float) ->
         anomaly_history.append(response)
 
         # Store in memory with embedding (simple feature vector)
-        embedding = np.array([
-            telemetry.voltage,
-            telemetry.temperature,
-            abs(telemetry.gyro),
-            telemetry.current or 0.0,
-            telemetry.wheel_speed or 0.0
-        ])
-        memory_store.write(
-            embedding=embedding,
-            metadata={
-                "anomaly_type": anomaly_type,
-                "severity": anomaly_score,
-                "critical": decision['should_escalate_to_safe_mode']
-            },
-            timestamp=telemetry.timestamp
-        )
+        try:
+            embedding = np.array([
+                telemetry.voltage,
+                telemetry.temperature,
+                abs(telemetry.gyro),
+                telemetry.current or 0.0,
+                telemetry.wheel_speed or 0.0
+            ], dtype=np.float32)  # Ensure consistent dtype
+            
+            # Validate embedding before writing
+            if not np.isfinite(embedding).all():
+                logger.warning(f"Invalid embedding values detected, skipping memory write: {embedding}")
+            else:
+                memory_store.write(
+                    embedding=embedding,
+                    metadata={
+                        "anomaly_type": anomaly_type,
+                        "severity": anomaly_score,
+                        "critical": decision['should_escalate_to_safe_mode']
+                    },
+                    timestamp=telemetry.timestamp
+                )
+        except Exception as e:
+            # Don't fail the request if memory write fails
+            logger.error(f"Failed to write to memory store: {e}")
 
     else:
         # No anomaly
@@ -774,7 +783,7 @@ async def get_status(api_key: APIKey = Depends(get_api_key)):
 
     return SystemStatus(
         status="healthy" if all(
-            c.get("status") == "HEALTHY" for c in components.values()
+            c.get("status") == "healthy" for c in components.values()
         ) else "degraded",
         mission_phase=state_machine.get_current_phase().value,
         components=components,

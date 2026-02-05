@@ -16,6 +16,14 @@ async def setup_components():
     from api.service import memory_store
     if memory_store:
         memory_store.memory = []
+    
+    # Reset component health to ensure all start as HEALTHY
+    from core.component_health import get_health_monitor
+    health_monitor = get_health_monitor()
+    
+    # Mark all components as healthy for tests
+    for component_name in ["anomaly_detector", "memory_store", "state_machine", "circuit_breaker"]:
+        health_monitor.mark_healthy(component_name)
 
 
 @pytest.fixture(autouse=True)
