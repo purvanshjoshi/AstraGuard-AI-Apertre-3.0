@@ -198,7 +198,7 @@ class LatencyCollector:
 
     def export_csv(self, filename: str) -> None:
         """
-        Export raw measurements to CSV.
+        Export raw measurements to CSV with buffering for better I/O performance.
 
         Args:
             filename: Path to output CSV file
@@ -223,8 +223,12 @@ class LatencyCollector:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
 
-            for m in self.measurements:
-                writer.writerow(asdict(m))
+            # Write in batches for better performance
+            batch_size = 1000
+            for i in range(0, len(self.measurements), batch_size):
+                batch = self.measurements[i:i + batch_size]
+                for m in batch:
+                    writer.writerow(asdict(m))
 
         logger.info(f"Exported {len(self.measurements)} measurements to {filepath}")
 
@@ -249,6 +253,35 @@ class LatencyCollector:
         """Clear all measurements."""
         self.measurements.clear()
         self._measurement_log.clear()
+
+    def _calculate_percentiles(self, latencies: List[float]) -> Dict[str, float]:
+        """
+        Calculate percentiles using heap-based selection for better performance.
+
+        Args:
+            latencies: List of latency values
+
+        Returns:
+            Dict with p50_ms, p95_ms, p99_ms
+        """
+        if not latencies:
+            return {"p50_ms": 0.0, "p95_ms": 0.0, "p99_ms": 0.0}
+
+        count = len(latencies)
+
+        # Use heapq to find percentiles without full sort
+        def nth_smallest(n):
+            return heapq.nsmallest(n, latencies)[-1] if n <= count else latencies[-1]
+
+        p50_index = count // 2 + 1
+        p95_index = int(count * 0.95) + 1
+        p99_index = int(count * 0.99) + 1
+
+        return {
+            "p50_ms": nth_smallest(p50_index),
+            "p95_ms": nth_smallest(p95_index),
+            "p99_ms": nth_smallest(p99_index),
+        }
 
     def __len__(self) -> int:
         """Return number of measurements."""

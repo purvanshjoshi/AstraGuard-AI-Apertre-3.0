@@ -99,6 +99,12 @@ class MetricsStorage:
         try:
             content = summary_path.read_text()
             return json.loads(content)
+        except (OSError, PermissionError, IsADirectoryError) as e:
+            logging.error(f"Failed to read metrics file {summary_path}: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse JSON from {summary_path}: {e}")
+            return None
         except Exception as e:
             logging.error(f"Unexpected error loading metrics from {summary_path}: {e}")
             return None
