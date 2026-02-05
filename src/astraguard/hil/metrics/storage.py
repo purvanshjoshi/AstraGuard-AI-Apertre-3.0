@@ -7,7 +7,6 @@ measurement data, enabling performance analysis and regression detection.
 
 import json
 import asyncio
-import logging
 from pathlib import Path
 from typing import Dict, Any
 from datetime import datetime
@@ -71,12 +70,12 @@ class MetricsStorage:
                 "stats_by_satellite": summary.get("stats_by_satellite", {}),
             }
 
-            summary_path = self.metrics_dir / "latency_summary.json"
-            await asyncio.to_thread(summary_path.write_text, json.dumps(summary_dict, indent=2, default=str))
+        summary_path = self.metrics_dir / "latency_summary.json"
+        await asyncio.to_thread(summary_path.write_text, json.dumps(summary_dict, indent=2, default=str))
 
-            # Raw CSV for external analysis
-            csv_path = self.metrics_dir / "latency_raw.csv"
-            await asyncio.to_thread(collector.export_csv, str(csv_path))
+        # Raw CSV for external analysis
+        csv_path = self.metrics_dir / "latency_raw.csv"
+        await asyncio.to_thread(collector.export_csv, str(csv_path))
 
             return {"summary": str(summary_path), "raw": str(csv_path)}
         except (OSError, PermissionError) as e:
@@ -101,12 +100,6 @@ class MetricsStorage:
         try:
             content = await asyncio.to_thread(summary_path.read_text)
             return json.loads(content)
-        except (OSError, PermissionError, IsADirectoryError) as e:
-            logging.error(f"Failed to read metrics file {summary_path}: {e}")
-            return None
-        except json.JSONDecodeError as e:
-            logging.error(f"Failed to parse JSON from {summary_path}: {e}")
-            return None
         except Exception as e:
             logging.error(f"Unexpected error loading metrics from {summary_path}: {e}")
             return None
@@ -174,23 +167,16 @@ class MetricsStorage:
         Returns:
             list: List of recent run IDs, sorted by most recent first.
         """
-        try:
-            results_path = Path(results_dir)
-            if not await asyncio.to_thread(results_path.exists):
-                return []
-
-            # Find directories with latency metrics
-            runs = []
-            for run_dir in await asyncio.to_thread(lambda: sorted(results_path.iterdir(), reverse=True)):
-                if run_dir.is_dir() and await asyncio.to_thread((run_dir / "latency_summary.json").exists):
-                    runs.append(run_dir.name)
-                    if len(runs) >= limit:
-                        break
-
-            return runs
-        except (OSError, PermissionError) as e:
-            logging.error(f"Failed to get recent runs from {results_dir}: {e}")
+        results_path = Path(results_dir)
+        if not await asyncio.to_thread(results_path.exists):
             return []
-        except Exception as e:
-            logging.error(f"Unexpected error getting recent runs from {results_dir}: {e}")
-            return []
+
+        # Find directories with latency metrics
+        runs = []
+        for run_dir in await asyncio.to_thread(lambda: sorted(results_path.iterdir(), reverse=True)):
+            if run_dir.is_dir() and await asyncio.to_thread((run_dir / "latency_summary.json").exists):
+                runs.append(run_dir.name)
+                if len(runs) >= limit:
+                    break
+
+        return runs

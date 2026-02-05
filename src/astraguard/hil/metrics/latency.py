@@ -2,11 +2,14 @@
 
 import time
 import csv
+import logging
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from collections import defaultdict
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -40,15 +43,25 @@ class LatencyCollector:
             scenario_time_s: Simulation time when detected
             detection_delay_ms: Time from fault injection to detection
         """
+        if not isinstance(sat_id, str) or not sat_id.strip():
+            raise ValueError(f"Invalid sat_id: must be non-empty string, got {sat_id}")
+        
+        if not isinstance(scenario_time_s, (int, float)) or scenario_time_s < 0:
+            raise ValueError(f"Invalid scenario_time_s: must be non-negative number, got {scenario_time_s}")
+        
+        if not isinstance(detection_delay_ms, (int, float)) or detection_delay_ms < 0:
+            raise ValueError(f"Invalid detection_delay_ms: must be non-negative number, got {detection_delay_ms}")
+
         measurement = LatencyMeasurement(
             timestamp=time.time(),
             metric_type="fault_detection",
             satellite_id=sat_id,
-            duration_ms=detection_delay_ms,
-            scenario_time_s=scenario_time_s,
+            duration_ms=float(detection_delay_ms),
+            scenario_time_s=float(scenario_time_s),
         )
         self.measurements.append(measurement)
         self._measurement_log["fault_detection"] += 1
+        logger.debug(f"Recorded fault detection latency: {sat_id}, {detection_delay_ms}ms")
 
     def record_agent_decision(
         self, sat_id: str, scenario_time_s: float, decision_time_ms: float
@@ -61,15 +74,25 @@ class LatencyCollector:
             scenario_time_s: Simulation time of decision
             decision_time_ms: Time for agent to process and decide
         """
+        if not isinstance(sat_id, str) or not sat_id.strip():
+            raise ValueError(f"Invalid sat_id: must be non-empty string, got {sat_id}")
+        
+        if not isinstance(scenario_time_s, (int, float)) or scenario_time_s < 0:
+            raise ValueError(f"Invalid scenario_time_s: must be non-negative number, got {scenario_time_s}")
+        
+        if not isinstance(decision_time_ms, (int, float)) or decision_time_ms < 0:
+            raise ValueError(f"Invalid decision_time_ms: must be non-negative number, got {decision_time_ms}")
+
         measurement = LatencyMeasurement(
             timestamp=time.time(),
             metric_type="agent_decision",
             satellite_id=sat_id,
-            duration_ms=decision_time_ms,
-            scenario_time_s=scenario_time_s,
+            duration_ms=float(decision_time_ms),
+            scenario_time_s=float(scenario_time_s),
         )
         self.measurements.append(measurement)
         self._measurement_log["agent_decision"] += 1
+        logger.debug(f"Recorded agent decision latency: {sat_id}, {decision_time_ms}ms")
 
     def record_recovery_action(
         self, sat_id: str, scenario_time_s: float, action_time_ms: float
@@ -82,15 +105,25 @@ class LatencyCollector:
             scenario_time_s: Simulation time of action
             action_time_ms: Time to execute recovery action
         """
+        if not isinstance(sat_id, str) or not sat_id.strip():
+            raise ValueError(f"Invalid sat_id: must be non-empty string, got {sat_id}")
+        
+        if not isinstance(scenario_time_s, (int, float)) or scenario_time_s < 0:
+            raise ValueError(f"Invalid scenario_time_s: must be non-negative number, got {scenario_time_s}")
+        
+        if not isinstance(action_time_ms, (int, float)) or action_time_ms < 0:
+            raise ValueError(f"Invalid action_time_ms: must be non-negative number, got {action_time_ms}")
+
         measurement = LatencyMeasurement(
             timestamp=time.time(),
             metric_type="recovery_action",
             satellite_id=sat_id,
-            duration_ms=action_time_ms,
-            scenario_time_s=scenario_time_s,
+            duration_ms=float(action_time_ms),
+            scenario_time_s=float(scenario_time_s),
         )
         self.measurements.append(measurement)
         self._measurement_log["recovery_action"] += 1
+        logger.debug(f"Recorded recovery action latency: {sat_id}, {action_time_ms}ms")
 
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -108,19 +141,23 @@ class LatencyCollector:
 
         stats = {}
         for metric_type, latencies in by_type.items():
+            if not latencies:
+                continue
+                
             sorted_latencies = sorted(latencies)
             count = len(sorted_latencies)
 
             stats[metric_type] = {
                 "count": count,
-                "mean_ms": sum(latencies) / count if count > 0 else 0,
+                "mean_ms": sum(latencies) / count,
                 "p50_ms": sorted_latencies[count // 2],
-                "p95_ms": sorted_latencies[int(count * 0.95)] if count > 0 else 0,
-                "p99_ms": sorted_latencies[int(count * 0.99)] if count > 0 else 0,
+                "p95_ms": sorted_latencies[int(count * 0.95)],
+                "p99_ms": sorted_latencies[int(count * 0.99)],
                 "max_ms": max(latencies),
                 "min_ms": min(latencies),
             }
 
+        logger.debug(f"Calculated statistics for {len(stats)} metric types")
         return stats
 
     def get_stats_by_satellite(self) -> Dict[str, Dict[str, Any]]:
@@ -130,6 +167,9 @@ class LatencyCollector:
         Returns:
             Dict mapping satellite ID to stats
         """
+        if not self.measurements:
+            return {}
+
         by_satellite = defaultdict(lambda: defaultdict(list))
 
         for m in self.measurements:
@@ -139,17 +179,21 @@ class LatencyCollector:
         for sat_id, metrics in by_satellite.items():
             stats[sat_id] = {}
             for metric_type, latencies in metrics.items():
+                if not latencies:
+                    continue
+                    
                 sorted_latencies = sorted(latencies)
                 count = len(sorted_latencies)
 
                 stats[sat_id][metric_type] = {
                     "count": count,
-                    "mean_ms": sum(latencies) / count if count > 0 else 0,
+                    "mean_ms": sum(latencies) / count,
                     "p50_ms": sorted_latencies[count // 2],
-                    "p95_ms": sorted_latencies[int(count * 0.95)] if count > 0 else 0,
-                    "max_ms": max(latencies) if latencies else 0,
+                    "p95_ms": sorted_latencies[int(count * 0.95)],
+                    "max_ms": max(latencies),
                 }
 
+        logger.debug(f"Calculated statistics for {len(stats)} satellites")
         return stats
 
     def export_csv(self, filename: str) -> None:
@@ -159,9 +203,16 @@ class LatencyCollector:
         Args:
             filename: Path to output CSV file
         """
-        Path(filename).parent.mkdir(parents=True, exist_ok=True)
+        if not isinstance(filename, str) or not filename.strip():
+            raise ValueError(f"Invalid filename: must be non-empty string, got {filename}")
+        
+        if not self.measurements:
+            raise ValueError("No measurements to export")
 
-        with open(filename, "w", newline="") as f:
+        filepath = Path(filename)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(filepath, "w", newline="", encoding='utf-8') as f:
             fieldnames = [
                 "timestamp",
                 "metric_type",
@@ -174,6 +225,8 @@ class LatencyCollector:
 
             for m in self.measurements:
                 writer.writerow(asdict(m))
+
+        logger.info(f"Exported {len(self.measurements)} measurements to {filepath}")
 
     def get_summary(self) -> Dict[str, Any]:
         """
