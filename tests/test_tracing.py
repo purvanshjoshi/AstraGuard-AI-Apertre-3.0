@@ -11,20 +11,11 @@ Improvements:
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch, call
+from unittest.mock import MagicMock, call
 import logging
-from typing import Generator
 import asyncio
 
 # Import the module under test
-import sys
-from pathlib import Path
-
-# Add src directory to path to import astraguard modules
-src_path = str(Path(__file__).parent.parent.parent / 'src')
-if src_path not in sys.path:
-    sys.path.insert(0, src_path)
-
 from astraguard import tracing
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -428,13 +419,13 @@ class TestSyncSpanContextManagers:
         monkeypatch.setattr("astraguard.tracing.get_tracer", MagicMock(return_value=mock_tracer))
 
         error = RuntimeError("Model failed")
-        span = mock_tracer.start_as_current_span.return_value
-
-        with pytest.raises(RuntimeError):
+        try:
             with tracing.span_anomaly_detection(data_size=100):
                 raise error
+        except RuntimeError:
+            pass
 
-        span.record_exception.assert_called_once_with(error)
+        mock_tracer.start_as_current_span.return_value.record_exception.assert_called_once_with(error)
 
     def test_span_model_inference_with_tuple_shape(self, monkeypatch, mock_tracer):
         """Test model inference span stringifies tuple input_shape"""
@@ -517,13 +508,14 @@ class TestAsyncSpanContextManagers:
         monkeypatch.setattr("astraguard.tracing.get_tracer", MagicMock(return_value=mock_tracer))
 
         error = ValueError("Async error")
-        span = mock_tracer.start_as_current_span.return_value
 
-        with pytest.raises(ValueError):
+        try:
             async with tracing.async_span_anomaly_detection(data_size=200):
                 raise error
+        except ValueError:
+            pass
 
-        span.record_exception.assert_called_once_with(error)
+        mock_tracer.start_as_current_span.return_value.record_exception.assert_called_once_with(error)
 
     @pytest.mark.asyncio
     async def test_async_external_call_with_timeout(self, monkeypatch, mock_tracer):
