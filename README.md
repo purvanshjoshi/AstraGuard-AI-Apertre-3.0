@@ -44,8 +44,8 @@
 
 **🏆 A huge thank you to all the talented developers who have contributed to AstraGuard AI**
 
-<a href="https://github.com/sr-857/AstraGuard-AI/graphs/contributors?selectedMetric=additions">
-  <img src="https://contrib.rocks/image?repo=sr-857/AstraGuard-AI&max=300" />
+<a href="https://github.com/sr-857/AstraGuard-AI-Apertre-3.0/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=sr-857/AstraGuard-AI-Apertre-3.0" />
 </a>
 
 ## _Want to see your avatar here? [Make your first contribution today!](CONTRIBUTING.md)_
