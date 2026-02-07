@@ -8,6 +8,7 @@ import json
 import sys
 import os
 from datetime import datetime
+from types import TracebackType
 from typing import Any, Optional, Type
 import structlog
 from pythonjsonlogger import jsonlogger
@@ -138,7 +139,7 @@ class LogContext:
         self.logger = self.logger.bind(**self.context)
         return self.logger
     
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[Any]) -> None:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]) -> None:
         """Exits the logging context.
 
         Logs an error if an exception occurred within the context.
