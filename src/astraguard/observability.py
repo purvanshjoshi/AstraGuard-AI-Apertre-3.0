@@ -10,9 +10,13 @@ from prometheus_client import (
 from contextlib import contextmanager
 import time
 import logging
+import asyncio
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# Cache for metrics to avoid repeated registry lookups
+_metric_cache = {}
 
 # ============================================================================
 # SAFE METRIC INITIALIZATION (handles test reruns gracefully)
@@ -20,23 +24,33 @@ logger = logging.getLogger(__name__)
 
 def _safe_create_metric(metric_class, name, *args, **kwargs):
     """Safely create metrics, handling duplicate registration in tests"""
+    # Check cache first
+    if name in _metric_cache:
+        return _metric_cache[name]
+
     try:
-        return metric_class(*args, **kwargs)
+        metric = metric_class(*args, **kwargs)
+        _metric_cache[name] = metric  # Cache the metric
+        return metric
     except ValueError as e:
         if "Duplicated timeseries" in str(e):
             logger.warning(f"Metric {name} already exists, attempting to retrieve from registry")
             # Metric already exists, retrieve it from registry
             for collector in REGISTRY._collector_to_names:
                 if hasattr(collector, '_name') and collector._name == name:
+                    _metric_cache[name] = collector  # Cache it
                     return collector
                 if hasattr(collector, '_metrics'):
                     for metric_name, metric_obj in collector._metrics.items():
                         if metric_name == name:
+                            _metric_cache[name] = metric_obj  # Cache it
                             return metric_obj
             # If not found in registry, log error and create with new registry
             logger.error(f"Metric {name} not found in registry after duplicate error, creating new")
             try:
-                return metric_class(*args, **kwargs)
+                metric = metric_class(*args, **kwargs)
+                _metric_cache[name] = metric  # Cache it
+                return metric
             except Exception as inner_e:
                 logger.error(f"Failed to create metric {name} with new registry: {inner_e}")
                 raise
@@ -321,6 +335,82 @@ def track_retry_attempt(endpoint: str):
 @contextmanager
 def track_chaos_recovery(chaos_type: str):
     """Track recovery time from chaos injection"""
+    start = time.time()
+    try:
+        yield
+        duration = time.time() - start
+        if CHAOS_RECOVERY_TIME:
+            CHAOS_RECOVERY_TIME.labels(type=chaos_type).observe(duration)
+    except Exception as e:
+        logger.error(f"Chaos recovery failed for {chaos_type}: {e}")
+        if ERRORS:
+            ERRORS.labels(type=type(e).__name__, endpoint="chaos_recovery").inc()
+        raise
+
+
+# ============================================================================
+# ASYNC CONTEXT MANAGERS FOR INSTRUMENTATION
+# ============================================================================
+
+@contextmanager
+async def async_track_request(endpoint: str, method: str = "POST"):
+    """Async version of track_request for async contexts"""
+    start = time.time()
+    try:
+        if ACTIVE_CONNECTIONS:
+            ACTIVE_CONNECTIONS.inc()
+        yield
+        duration = time.time() - start
+        if REQUEST_LATENCY:
+            REQUEST_LATENCY.labels(endpoint=endpoint).observe(duration)
+        if REQUEST_COUNT:
+            REQUEST_COUNT.labels(method=method, endpoint=endpoint, status="200").inc()
+    except Exception as e:
+        duration = time.time() - start
+        if REQUEST_LATENCY:
+            REQUEST_LATENCY.labels(endpoint=endpoint).observe(duration)
+        if REQUEST_COUNT:
+            REQUEST_COUNT.labels(method=method, endpoint=endpoint, status="500").inc()
+        if ERRORS:
+            ERRORS.labels(type=type(e).__name__, endpoint=endpoint).inc()
+        raise
+    finally:
+        if ACTIVE_CONNECTIONS:
+            ACTIVE_CONNECTIONS.dec()
+
+
+@contextmanager
+async def async_track_anomaly_detection():
+    """Async version of track_anomaly_detection"""
+    start = time.time()
+    try:
+        yield
+        duration = time.time() - start
+        if DETECTION_LATENCY:
+            DETECTION_LATENCY.observe(duration)
+    except Exception as e:
+        logger.error(f"Anomaly detection failed: {e}")
+        if ERRORS:
+            ERRORS.labels(type=type(e).__name__, endpoint="anomaly_detection").inc()
+        raise
+
+
+@contextmanager
+async def async_track_retry_attempt(endpoint: str):
+    """Async version of track_retry_attempt"""
+    start = time.time()
+    try:
+        yield
+        duration = time.time() - start
+        if RETRY_LATENCY:
+            RETRY_LATENCY.labels(endpoint=endpoint).observe(duration)
+    except Exception:
+        raise
+
+
+@contextmanager
+async def async_track_chaos_recovery(chaos_type: str):
+    """Async version of track_chaos_recovery"""
     start = time.time()
     try:
         yield

@@ -13,6 +13,17 @@ from typing import Any, Optional, Type
 import structlog
 from pythonjsonlogger import jsonlogger
 from core.secrets import get_secret
+from functools import lru_cache
+import asyncio
+
+# Cache secret retrieval to avoid repeated I/O
+@lru_cache(maxsize=32)
+def _cached_get_secret(key: str, default=None):
+    """Cached wrapper for get_secret to reduce I/O overhead."""
+    try:
+        return get_secret(key, default)
+    except Exception:
+        return default
 
 # ============================================================================
 # STRUCTURED LOGGING CONFIGURATION
@@ -366,7 +377,7 @@ def log_performance_metric(
         log_level = "warning"
     else: 
         log_level = "info"
-    
+
     getattr(logger, log_level)(
         "performance_metric",
         metric=metric_name,
@@ -376,6 +387,72 @@ def log_performance_metric(
         alert=alert,
         **extra
     )
+
+
+# ============================================================================
+# ASYNC LOGGING FUNCTIONS
+# ============================================================================
+
+async def async_log_request(
+    logger: structlog.BoundLogger,
+    method: str,
+    endpoint: str,
+    status: int,
+    duration_ms: float,
+    **extra
+):
+    """
+    Async version of log_request to avoid blocking in async contexts.
+
+    Args:
+        logger: Structlog logger instance
+        method: HTTP method
+        endpoint: Request endpoint
+        status: HTTP status code
+        duration_ms: Request duration in milliseconds
+        **extra: Additional context fields
+    """
+    await asyncio.to_thread(
+        log_request, logger, method, endpoint, status, duration_ms, **extra
+    )
+
+
+async def async_log_error(
+    logger: structlog.BoundLogger,
+    error: Exception,
+    context: str,
+    **extra
+):
+    """
+    Async version of log_error.
+
+    Args:
+        logger: Structlog logger instance
+        error: Exception instance
+        context: Context description
+        **extra: Additional context fields
+    """
+    await asyncio.to_thread(log_error, logger, error, context, **extra)
+
+
+async def async_log_detection(
+    logger: structlog.BoundLogger,
+    severity: str,
+    detected_type: str,
+    confidence: float,
+    **extra
+):
+    """
+    Async version of log_detection.
+
+    Args:
+        logger: Structlog logger instance
+        severity: Severity level
+        detected_type: Type of anomaly detected
+        confidence: Confidence score
+        **extra: Additional context fields
+    """
+    await asyncio.to_thread(log_detection, logger, severity, detected_type, confidence, **extra)
 
 
 # ============================================================================
@@ -433,7 +510,7 @@ def unbind_context(*keys: str) -> None:
 
 # Initialize on import with error handling
 try:
-    enable_json = get_secret("enable_json_logging", False)
+    enable_json = _cached_get_secret("enable_json_logging", False)
     if enable_json:
         setup_json_logging()
 except (KeyError, ValueError, Exception) as e:

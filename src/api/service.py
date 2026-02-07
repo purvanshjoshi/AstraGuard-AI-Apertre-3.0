@@ -1,7 +1,23 @@
 """
-AstraGuard AI REST API Service
+AstraGuard AI REST API Service.
 
-FastAPI-based REST API for telemetry ingestion and anomaly detection.
+This module provides a FastAPI-based REST API for telemetry ingestion,
+real-time anomaly detection, and system monitoring in the AstraGuard AI system.
+It integrates with various components including state machines, anomaly detectors,
+memory stores, and predictive maintenance engines.
+
+The API supports:
+- Telemetry data submission and batch processing
+- Anomaly detection with phase-aware handling
+- System health monitoring and status reporting
+- Mission phase management
+- Authentication and authorization
+- Chaos engineering for testing resilience
+- Observability and metrics collection
+
+Attributes:
+    MAX_ANOMALY_HISTORY_SIZE (int): Maximum number of anomalies to keep in memory.
+    OBSERVABILITY_ENABLED (bool): Flag indicating if observability modules are available.
 """
 
 import os
@@ -30,13 +46,6 @@ from api.models import (
     AnomalyHistoryQuery,
     AnomalyHistoryResponse,
     HealthCheckResponse,
-    UserCreateRequest,
-    UserResponse,
-    APIKeyCreateRequest,
-    APIKeyResponse,
-    APIKeyCreateResponse,
-    LoginRequest,
-    TokenResponse,
 )
 from core.auth import (
     get_auth_manager,
@@ -49,6 +58,13 @@ from core.auth import (
     Permission,
     User,
     APIKey,
+    UserCreateRequest,
+    UserResponse,
+    APIKeyCreateRequest,
+    APIKeyResponse,
+    APIKeyCreateResponse,
+    LoginRequest,
+    TokenResponse,
 )
 from api.auth import get_api_key
 from state_machine.state_engine import StateMachine, MissionPhase
@@ -111,7 +127,24 @@ api_limiter = None
 
 
 async def initialize_components():
-    """Initialize application components (called on startup or in tests)."""
+    """Initialize core application components on startup or in tests.
+
+    This function sets up the essential components required for the AstraGuard AI system,
+    including state management, policy handling, anomaly detection, memory storage,
+    and predictive maintenance. Components are initialized lazily to avoid unnecessary
+    resource allocation.
+
+    Global Variables Modified:
+        state_machine: Mission phase state machine
+        policy_loader: Mission phase policy configuration loader
+        phase_aware_handler: Phase-aware anomaly decision handler
+        memory_store: Adaptive memory storage for anomaly patterns
+        predictive_engine: Predictive maintenance engine for failure prediction
+
+    Note:
+        This function is idempotent - calling it multiple times will not
+        reinitialize already existing components.
+    """
     global state_machine, policy_loader, phase_aware_handler, memory_store, predictive_engine
 
     if state_machine is None:
@@ -207,7 +240,32 @@ def _check_credential_security():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
+    """Application lifespan manager for startup and shutdown operations.
+
+    This async context manager handles the complete lifecycle of the FastAPI application,
+    performing initialization tasks on startup and cleanup tasks on shutdown. It ensures
+    all critical components are properly initialized before accepting requests and
+    gracefully cleaned up when the application terminates.
+
+    Startup Operations:
+        1. Security credential validation and warnings
+        2. Core component initialization (state machine, anomaly detector, etc.)
+        3. Anomaly detection model pre-loading
+        4. Rate limiting setup with Redis
+        5. Observability system initialization (metrics, tracing, logging)
+
+    Shutdown Operations:
+        1. Memory store persistence
+        2. Redis client connection cleanup
+
+    Yields:
+        None: Control is yielded back to FastAPI after startup, before shutdown cleanup.
+
+    Note:
+        Rate limiting middleware cannot be added here due to Starlette/FastAPI limitations
+        - the middleware stack is locked after app startup. Rate limiting is handled
+        at the endpoint level instead.
+    """
     global redis_client, telemetry_limiter, api_limiter
 
     # Security: Check credentials at startup
@@ -215,7 +273,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize components
     await initialize_components()
-    
+
     # Pre-load anomaly detection model async
     await load_model()
 
@@ -363,7 +421,23 @@ def get_current_username(credentials: HTTPBasicCredentials = Depends(security)):
 # ============================================================================
 
 def check_chaos_injection(fault_type: str) -> bool:
-    """Check if a chaos fault is currently active."""
+    """Check if a chaos fault is currently active.
+
+    This function is used for chaos engineering testing to simulate system failures.
+    It checks if a specific fault type is currently injected and active, automatically
+    cleaning up expired faults.
+
+    Args:
+        fault_type (str): The type of chaos fault to check (e.g., "network_latency",
+                         "model_loader", "redis_failure").
+
+    Returns:
+        bool: True if the fault is currently active, False otherwise.
+
+    Note:
+        Expired faults are automatically removed from the active_faults dictionary
+        to prevent memory leaks during chaos testing.
+    """
     if fault_type in active_faults:
         expiration = active_faults[fault_type]
         if time.time() > expiration:
@@ -529,13 +603,45 @@ async def metrics(username: str = Depends(get_current_username)):
 
 @app.post("/api/v1/telemetry", response_model=AnomalyResponse, status_code=status.HTTP_200_OK)
 async def submit_telemetry(telemetry: TelemetryInput, current_user: User = Depends(require_operator)):
-    """
-    Submit single telemetry point for anomaly detection.
+    """Submit single telemetry data point for real-time anomaly detection and analysis.
 
-    Requires API key authentication with 'write' permission.
+    This endpoint processes telemetry data through the complete AstraGuard AI pipeline,
+    including anomaly detection, fault classification, predictive maintenance, and
+    phase-aware decision making. The system analyzes sensor readings and provides
+    immediate feedback on system health and recommended actions.
+
+    Authentication:
+        Requires API key with 'operator' role and 'write' permission.
+
+    Chaos Engineering:
+        Supports chaos injection for testing resilience (network latency, model failures).
+
+    Args:
+        telemetry: TelemetryInput object containing sensor measurements including:
+            - voltage: Electrical voltage reading
+            - temperature: Temperature sensor reading
+            - gyro: Gyroscope measurements
+            - current: Current draw (optional)
+            - wheel_speed: Wheel speed (optional)
+            - Additional system metrics (CPU, memory, network, etc.)
 
     Returns:
-        AnomalyResponse with detection results and recommended actions
+        AnomalyResponse: Comprehensive analysis result containing:
+            - Detection results (is_anomaly, anomaly_score, anomaly_type)
+            - Severity assessment and recommended actions
+            - Mission phase context and policy decisions
+            - Confidence scores and reasoning
+            - Recurrence information
+
+    Raises:
+        HTTPException 401: Authentication failed
+        HTTPException 403: Insufficient permissions
+        HTTPException 503: Service unavailable (chaos injection or system issues)
+        HTTPException 500: Internal processing error
+
+    Note:
+        Processing includes ML-based anomaly detection, predictive maintenance analysis,
+        and storage in memory for pattern recognition. Results are logged for monitoring.
     """
     request_start = time.time()
     
@@ -584,7 +690,28 @@ async def submit_telemetry(telemetry: TelemetryInput, current_user: User = Depen
 
 
 async def _process_telemetry(telemetry: TelemetryInput, request_start: float) -> AnomalyResponse:
-    """Internal telemetry processing logic."""
+    """Process telemetry data through the complete anomaly detection pipeline.
+
+    This internal function handles the complete telemetry processing workflow:
+    1. Data conversion and validation
+    2. Anomaly detection using ML models or heuristics
+    3. Fault classification
+    4. Predictive maintenance analysis
+    5. Phase-aware decision making
+    6. Response construction and storage
+
+    Args:
+        telemetry: Input telemetry data from the request
+        request_start: Timestamp when request processing began (for latency tracking)
+
+    Returns:
+        AnomalyResponse: Complete analysis result with detection details, recommendations,
+                        and metadata
+
+    Note:
+        This function updates global state (latest_telemetry_data, anomaly_history)
+        and persists data to memory store for pattern analysis.
+    """
     # Convert telemetry to dict
     data = {
         "voltage": telemetry.voltage,

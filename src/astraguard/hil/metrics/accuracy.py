@@ -310,10 +310,40 @@ class AccuracyCollector:
             "confusion_matrix": self.get_confusion_matrix(),
         }
 
+    def _find_ground_truth_fault(self, sat_id: str, timestamp_s: float) -> Optional[str]:
+        """
+        Find the ground truth fault type for a satellite at a given timestamp.
+
+        Uses binary search on the sorted ground truth events for the satellite.
+        Returns the fault type of the most recent event at or before the timestamp.
+
+        Args:
+            sat_id: Satellite identifier
+            timestamp_s: Timestamp to search for
+
+        Returns:
+            Fault type (None for nominal) or None if no ground truth found
+        """
+        if sat_id not in self._ground_truth_by_sat:
+            return None
+
+        events = self._ground_truth_by_sat[sat_id]
+        if not events:
+            return None
+
+        # Binary search to find the rightmost event <= timestamp_s
+        idx = bisect.bisect_right(events, timestamp_s, key=lambda e: e.timestamp_s) - 1
+
+        if idx < 0:
+            return None
+
+        return events[idx].expected_fault_type
+
     def reset(self) -> None:
         """Clear all data."""
         self.ground_truth_events.clear()
         self.agent_classifications.clear()
+        self._ground_truth_by_sat.clear()
 
     def __len__(self) -> int:
         """Return number of classifications."""
