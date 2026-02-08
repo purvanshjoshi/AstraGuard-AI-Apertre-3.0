@@ -102,10 +102,21 @@ class AccuracyCollector:
 
     def get_accuracy_stats(self) -> Dict[str, Any]:
         """
-        Calculate accuracy statistics.
+        Calculate comprehensive classification accuracy statistics.
+
+        Computes:
+        - Overall Accuracy: (Correct / Total)
+        - Per-Fault Metrics: Precision, Recall, F1-Score for each fault type.
+        - Confidence Metrics: Mean and Standard Deviation of agent confidence.
 
         Returns:
-            Dict with overall accuracy, per-fault-type precision/recall, confidence
+            Dict[str, Any]: A dictionary containing:
+                - total_classifications (int)
+                - correct_classifications (int)
+                - overall_accuracy (float)
+                - by_fault_type (Dict): Nested stats per fault type
+                - confidence_mean (float)
+                - confidence_std (float)
         """
         if not self.agent_classifications:
             return {

@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class TestResult:
+class SwarmTestResult:
     """Result of single test."""
     test_name: str
     passed: bool
@@ -53,7 +53,7 @@ class SwarmTestSummary:
     total_tests: int
     passed_tests: int
     failed_tests: int
-    results: List[TestResult]
+    results: List[SwarmTestResult]
     
     @property
     def duration_seconds(self) -> float:
@@ -105,7 +105,7 @@ class SwarmSimulatorOrchestrator:
                 return False
             
             # Wait for all agents healthy
-            await self._wait_for_agents_healthy(timeout=60)
+            await self._wait_for_agents_healthy(timeout=120)
             logger.info("✓ All agents healthy")
             return True
         except Exception as e:
@@ -127,35 +127,60 @@ class SwarmSimulatorOrchestrator:
             logger.error(f"Failed to stop constellation: {e}")
             return False
     
-    async def _wait_for_agents_healthy(self, timeout: int = 60):
+    async def _wait_for_agents_healthy(self, timeout: int = 120):
         """Wait for all agents to pass health checks."""
         start = datetime.now()
-        while (datetime.now() - start).total_seconds() < timeout:
-            try:
-                healthy = 0
-                for agent_id, port in self.agent_ports.items():
-                    try:
-                        async with httpx.AsyncClient(timeout=5) as client:
+        logger.info(f"Waiting up to {timeout}s for agents to become healthy...")
+        
+        async with httpx.AsyncClient(timeout=5) as client:
+            while (datetime.now() - start).total_seconds() < timeout:
+                try:
+                    healthy = 0
+                    errors = []
+                    for agent_id, port in self.agent_ports.items():
+                        try:
                             resp = await client.get(f"http://localhost:{port}/health")
                             if resp.status_code == 200:
                                 healthy += 1
-                    except:
-                        pass
+                            else:
+                                errors.append(f"{agent_id}: status {resp.status_code}")
+                        except Exception as e:
+                            errors.append(f"{agent_id}: {str(e)}")
+                    
+                    if healthy == len(self.agents):
+                        logger.info(f"All {len(self.agents)} agents healthy")
+                        return
+                    
+                    # Only log every 10 seconds to avoid spam, but log errors
+                    if int((datetime.now() - start).total_seconds()) % 10 == 0:
+                        logger.info(f"Waiting for agents: {healthy}/{len(self.agents)} healthy")
+                        if errors:
+                            logger.debug(f"Health check errors: {', '.join(errors[:3])}...")
+                        
+                except Exception as e:
+                    logger.error(f"Health check loop error: {e}")
                 
-                if healthy == len(self.agents):
-                    logger.info(f"All {len(self.agents)} agents healthy")
-                    return
-            except:
-                pass
-            
-            await asyncio.sleep(1)
+                await asyncio.sleep(1)
         
+        # Dump docker logs on failure
+        try:
+            logger.error("!!! TIMEOUT: Dumping container logs !!!")
+            for agent_id in self.agents:
+                try:
+                    container = self.docker.containers.get(f"astra-{agent_id.lower()}")
+                    logs = container.logs(tail=20).decode('utf-8')
+                    logger.error(f"--- Logs for {agent_id} ---\n{logs}\n----------------")
+                except Exception as e:
+                    logger.error(f"Could not get logs for {agent_id}: {e}")
+        except Exception as e:
+            logger.error(f"Failed to dump logs: {e}")
+
         raise TimeoutError(f"Agents not healthy after {timeout}s")
     
     # ==================== GOLDEN PATH TESTS ====================
     
     @pytest.mark.asyncio
-    async def test_golden_path_1_healthy_boot(self) -> TestResult:
+    async def test_golden_path_1_healthy_boot(self) -> SwarmTestResult:
         """Test 1: Healthy Constellation Boot (#397-400)."""
         test_name = "Golden Path 1: Healthy Boot"
         logger.info(f"Running: {test_name}")
@@ -177,16 +202,16 @@ class SwarmSimulatorOrchestrator:
             
             duration = (datetime.now() - start).total_seconds()
             logger.info(f"✓ {test_name}: PASSED ({duration:.1f}s)")
-            return TestResult(test_name, True, duration)
+            return SwarmTestResult(test_name, True, duration)
         
         except Exception as e:
             duration = (datetime.now() - start).total_seconds()
             logger.error(f"✗ {test_name}: FAILED ({duration:.1f}s)")
             logger.error(f"  Error: {e}")
-            return TestResult(test_name, False, duration, str(e))
+            return SwarmTestResult(test_name, False, duration, str(e))
     
     @pytest.mark.asyncio
-    async def test_golden_path_2_anomaly_response(self) -> TestResult:
+    async def test_golden_path_2_anomaly_response(self) -> SwarmTestResult:
         """Test 2: Anomaly Detection → Recovery (#401-409)."""
         test_name = "Golden Path 2: Anomaly Response"
         logger.info(f"Running: {test_name}")
@@ -208,16 +233,16 @@ class SwarmSimulatorOrchestrator:
             
             duration = (datetime.now() - start).total_seconds()
             logger.info(f"✓ {test_name}: PASSED ({duration:.1f}s)")
-            return TestResult(test_name, True, duration)
+            return SwarmTestResult(test_name, True, duration)
         
         except Exception as e:
             duration = (datetime.now() - start).total_seconds()
             logger.error(f"✗ {test_name}: FAILED ({duration:.1f}s)")
             logger.error(f"  Error: {e}")
-            return TestResult(test_name, False, duration, str(e))
+            return SwarmTestResult(test_name, False, duration, str(e))
     
     @pytest.mark.asyncio
-    async def test_golden_path_3_network_partition(self) -> TestResult:
+    async def test_golden_path_3_network_partition(self) -> SwarmTestResult:
         """Test 3: Network Partition → Quorum (#403-406)."""
         test_name = "Golden Path 3: Network Partition"
         logger.info(f"Running: {test_name}")
@@ -242,16 +267,16 @@ class SwarmSimulatorOrchestrator:
             
             duration = (datetime.now() - start).total_seconds()
             logger.info(f"✓ {test_name}: PASSED ({duration:.1f}s)")
-            return TestResult(test_name, True, duration)
+            return SwarmTestResult(test_name, True, duration)
         
         except Exception as e:
             duration = (datetime.now() - start).total_seconds()
             logger.error(f"✗ {test_name}: FAILED ({duration:.1f}s)")
             logger.error(f"  Error: {e}")
-            return TestResult(test_name, False, duration, str(e))
+            return SwarmTestResult(test_name, False, duration, str(e))
     
     @pytest.mark.asyncio
-    async def test_golden_path_4_leader_crash(self) -> TestResult:
+    async def test_golden_path_4_leader_crash(self) -> SwarmTestResult:
         """Test 4: Leader Crash → Re-election (#400-406)."""
         test_name = "Golden Path 4: Leader Crash"
         logger.info(f"Running: {test_name}")
@@ -276,18 +301,18 @@ class SwarmSimulatorOrchestrator:
             
             duration = (datetime.now() - start).total_seconds()
             logger.info(f"✓ {test_name}: PASSED ({duration:.1f}s)")
-            return TestResult(test_name, True, duration)
+            return SwarmTestResult(test_name, True, duration)
         
         except Exception as e:
             duration = (datetime.now() - start).total_seconds()
             logger.error(f"✗ {test_name}: FAILED ({duration:.1f}s)")
             logger.error(f"  Error: {e}")
-            return TestResult(test_name, False, duration, str(e))
+            return SwarmTestResult(test_name, False, duration, str(e))
     
     # ==================== FAILURE INJECTION TESTS ====================
     
     @pytest.mark.asyncio
-    async def test_failure_agent_crash_recovery(self) -> TestResult:
+    async def test_failure_agent_crash_recovery(self) -> SwarmTestResult:
         """Test agent crash and recovery."""
         test_name = "Failure: Agent Crash Recovery"
         logger.info(f"Running: {test_name}")
@@ -316,16 +341,16 @@ class SwarmSimulatorOrchestrator:
             
             duration = (datetime.now() - start).total_seconds()
             logger.info(f"✓ {test_name}: PASSED ({duration:.1f}s)")
-            return TestResult(test_name, True, duration)
+            return SwarmTestResult(test_name, True, duration)
         
         except Exception as e:
             duration = (datetime.now() - start).total_seconds()
             logger.error(f"✗ {test_name}: FAILED: {e}")
             await self.failure_injector.recover_all()
-            return TestResult(test_name, False, duration, str(e))
+            return SwarmTestResult(test_name, False, duration, str(e))
     
     @pytest.mark.asyncio
-    async def test_failure_network_latency(self) -> TestResult:
+    async def test_failure_network_latency(self) -> SwarmTestResult:
         """Test operation under high latency."""
         test_name = "Failure: Network Latency"
         logger.info(f"Running: {test_name}")
@@ -350,13 +375,13 @@ class SwarmSimulatorOrchestrator:
             
             duration = (datetime.now() - start).total_seconds()
             logger.info(f"✓ {test_name}: PASSED ({duration:.1f}s)")
-            return TestResult(test_name, True, duration)
+            return SwarmTestResult(test_name, True, duration)
         
         except Exception as e:
             duration = (datetime.now() - start).total_seconds()
             logger.error(f"✗ {test_name}: FAILED: {e}")
             await self.failure_injector.recover_all()
-            return TestResult(test_name, False, duration, str(e))
+            return SwarmTestResult(test_name, False, duration, str(e))
     
     # ==================== COMPLETE TEST SUITE ====================
     

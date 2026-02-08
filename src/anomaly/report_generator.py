@@ -100,16 +100,27 @@ class AnomalyReportGenerator:
                        mission_phase: str,
                        telemetry_data: Dict[str, Any],
                        explanation: Optional[str] = None) -> None:
+    def record_anomaly(self,
+                       anomaly_type: str,
+                       severity: str,
+                       confidence: float,
+                       mission_phase: str,
+                       telemetry_data: Dict[str, Any],
+                       explanation: Optional[str] = None) -> None:
         """
-        Record a new anomaly detection event.
+        Record a new anomaly detection event for reporting.
+
+        Captures critical snapshot data at the time of detection, including the
+        raw telemetry that triggered the event, the model's confidence, and the
+        operational context (mission phase).
 
         Args:
-            anomaly_type: Type of anomaly detected
-            severity: Severity level (CRITICAL, HIGH, MEDIUM, LOW)
-            confidence: Confidence score (0.0 to 1.0)
-            mission_phase: Current mission phase
-            telemetry_data: Telemetry data that triggered the anomaly
-            explanation: Optional explanation of the anomaly
+            anomaly_type (str): Classification of the anomaly (e.g., 'spike', 'drift').
+            severity (str): Normalized severity level (CRITICAL, HIGH, MEDIUM, LOW).
+            confidence (float): Model's confidence score (0.0 to 1.0).
+            mission_phase (str): Satellite mission phase during detection.
+            telemetry_data (Dict[str, Any]): The raw sensor data snapshot.
+            explanation (Optional[str]): Human-readable reasoning for the detection.
         """
         event = AnomalyEvent(
             timestamp=datetime.now(),

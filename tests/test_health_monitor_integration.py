@@ -20,7 +20,7 @@ from fastapi import Response
 from prometheus_client import generate_latest
 
 # Import modules to test
-from backend.health_monitor import (
+from backend.health import (
     HealthMonitor,
     FallbackMode,
     router,

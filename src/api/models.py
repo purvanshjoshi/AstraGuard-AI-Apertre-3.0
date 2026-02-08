@@ -9,14 +9,30 @@ from enum import Enum
 
 
 class UserRole(str, Enum):
-    """User roles with hierarchical permissions."""
-    ADMIN = "admin"      # Full system access including user management
-    OPERATOR = "operator"  # Full operational access (telemetry, phase changes)
-    ANALYST = "analyst"   # Read-only access (status, history, monitoring)
+    """
+    User roles with hierarchical permissions.
+
+    Attributes:
+        ADMIN: Full system access including user management and configuration.
+        OPERATOR: Operational access (telemetry, phase changes, system control).
+        ANALYST: Read-only access (status, history, monitoring).
+    """
+    ADMIN = "admin"
+    OPERATOR = "operator"
+    ANALYST = "analyst"
 
 
 class MissionPhaseEnum(str, Enum):
-    """Mission phase enumeration."""
+    """
+    Mission phase enumeration representing the operational state of the satellite.
+
+    Attributes:
+        LAUNCH: Ascent phase, limited telemetry.
+        DEPLOYMENT: Asset deployment phase, critical monitoring.
+        NOMINAL_OPS: Standard operational phase.
+        PAYLOAD_OPS: Active mission operations, high data volume.
+        SAFE_MODE: Reduced functionality state for anomaly recovery.
+    """
     LAUNCH = "LAUNCH"
     DEPLOYMENT = "DEPLOYMENT"
     NOMINAL_OPS = "NOMINAL_OPS"
@@ -25,7 +41,27 @@ class MissionPhaseEnum(str, Enum):
 
 
 class TelemetryInput(BaseModel):
-    """Single telemetry data point."""
+    """
+    Single telemetry data point ingesting raw sensor values.
+
+    This model validates incoming telemetry streams against physical constraints
+    derived from satellite subsystems (e.g., thermal limits, power generation).
+
+    Attributes:
+        voltage: System voltage in volts (0-50V).
+        temperature: System temperature in Celsius (-100 to 150C).
+        gyro: Gyroscope reading in rad/s.
+        current: Current draw in amperes.
+        wheel_speed: Reaction wheel speed in RPM.
+        cpu_usage: CPU utilization percentage (0-100).
+        memory_usage: RAM utilization percentage (0-100).
+        network_latency: Round-trip time in milliseconds.
+        disk_io: Disk operations per second.
+        error_rate: Errors per minute.
+        response_time: Service response time in ms.
+        active_connections: Number of concurrent connections.
+        timestamp: Event generation time (defaults to server receipt time if None).
+    """
     voltage: float = Field(..., ge=0, le=50, description="Voltage in volts")
     temperature: float = Field(..., ge=-100, le=150, description="Temperature in Celsius")
     gyro: float = Field(..., description="Gyroscope reading in rad/s")
@@ -45,8 +81,9 @@ class TelemetryInput(BaseModel):
 
     @field_validator('timestamp', mode='before')
     @classmethod
-    def set_timestamp(cls, v):
+    def set_timestamp(cls, v: Optional[datetime]) -> datetime:
         """Set timestamp to now if not provided."""
+
         if v is None:
             return datetime.now()
         return v
@@ -58,7 +95,29 @@ class TelemetryBatch(BaseModel):
 
 
 class AnomalyResponse(BaseModel):
-    """Response from anomaly detection."""
+    """
+    Detailed response payload for a detected anomaly.
+
+    Provides a comprehensive analysis of the anomaly, including classification,
+    severity, and recommended lifecycle actions.
+
+    Attributes:
+        is_anomaly: Boolean flag indicating if the usage pattern is anomalous.
+        anomaly_score: Normalized score [0-1] representing deviation magnitude.
+        anomaly_type: Classified category (e.g., 'spike', 'drift', 'dropout').
+        severity_score: Normalized impact score [0-1].
+        severity_level: Categorical severity (LOW, MEDIUM, HIGH, CRITICAL).
+        mission_phase: Operational context during detection.
+        recommended_action: Suggested mitigation (e.g., 'monitor', 'failover').
+        escalation_level: Required notification tier.
+        is_allowed: Whether the operation should proceed despite the anomaly.
+        allowed_actions: List of permissible operations in current state.
+        should_escalate_to_safe_mode: Criticality trigger for Safe Mode transition.
+        confidence: Model confidence in the detection [0-1].
+        reasoning: Textual explanation of why this was flagged.
+        recurrence_count: Number of times this pattern has been seen recently.
+        timestamp: Time of detection.
+    """
     is_anomaly: bool
     anomaly_score: float = Field(..., ge=0, le=1)
     anomaly_type: str
@@ -141,3 +200,58 @@ class HealthCheckResponse(BaseModel):
     mission_phase: Optional[str] = None
     components_status: Optional[Dict[str, Dict[str, Any]]] = None
     error: Optional[str] = None
+
+
+class UserCreateRequest(BaseModel):
+    """Request to create a new user."""
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=8)
+    role: UserRole = UserRole.ANALYST
+    email: Optional[str] = None
+
+
+class UserResponse(BaseModel):
+    """Response model for user data."""
+    id: str
+    username: str
+    role: UserRole
+    email: Optional[str] = None
+    created_at: datetime
+    is_active: bool
+
+
+class APIKeyCreateRequest(BaseModel):
+    """Request to create a new API key."""
+    name: str = Field(..., min_length=1, max_length=50)
+    scopes: List[str] = Field(default_factory=list)
+    expires_in_days: Optional[int] = Field(None, ge=1, le=365)
+
+
+class APIKeyResponse(BaseModel):
+    """Response model for API key metadata (without secret)."""
+    id: str
+    name: str
+    prefix: str
+    user_id: str
+    scopes: List[str]
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+    last_used_at: Optional[datetime] = None
+    is_active: bool
+
+
+class APIKeyCreateResponse(APIKeyResponse):
+    """Response model for newly created API key (includes secret)."""
+    secret_key: str
+
+
+class LoginRequest(BaseModel):
+    """Request to login."""
+    username: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    """Response with access token."""
+    access_token: str
+    token_type: str = "bearer"

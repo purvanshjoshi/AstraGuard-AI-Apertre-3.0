@@ -41,16 +41,26 @@ def initialize_tracing(
     export_interval: float = 5.0
 ) -> TracerProvider:
     """
-    Initialize OpenTelemetry tracing with Jaeger backend
-    
+    Initialize OpenTelemetry tracing with a Jaeger backend.
+
+    Configures a global TracerProvider that exports spans to a Jaeger agent
+    via gRPC. Includes automatic resource tagging (environment, version) and
+    batch processing for performance.
+
+    Robustness:
+    - Retries connection failures with exponential backoff.
+    - Returns a no-op provider if tracing is disabled or initialization fails.
+
     Args:
-        service_name: Name of the service for tracing
-        jaeger_host: Jaeger agent hostname
-        jaeger_port: Jaeger agent port
-        enabled: Enable/disable tracing
-        
+        service_name (str): Identifier for the service in Jaeger UI.
+        jaeger_host (str): Hostname of the Jaeger agent/collector.
+        jaeger_port (int): Port of the Jaeger agent/collector (default: 6831).
+        enabled (bool): Global switch to enable/disable tracing.
+        batch_size (int): Max number of spans to send in one batch.
+        export_interval (float): Time in seconds between batch exports.
+
     Returns:
-        TracerProvider instance
+        TracerProvider: The configured global tracer provider.
     """
     if not enabled:
         logger.info("⚠️  Tracing disabled - using no-op tracer provider")
@@ -134,16 +144,23 @@ def get_tracer(name: str = __name__) -> trace.Tracer:
 @contextmanager
 def span(name: str, attributes: Optional[dict] = None):
     """
-    Context manager for creating spans
-    
+    Context manager for creating manual OpenTelemetry spans.
+
+    Wraps a block of code in a custom span, allowing for granular performance
+    tracking and attribute tagging. Automatically handles span lifecycle (start/end)
+    and exception recording.
+
     Args:
-        name: Span name
-        attributes: Optional span attributes
-        
+        name (str): The operation name to display in the trace.
+        attributes (Optional[dict]): Key-value pairs to annotate the span
+                                     (e.g., {"user_id": "123", "retry": "true"}).
+
+    Yields:
+        trace.Span: The active span object for further customization.
+
     Example:
-        with span("database_query", {"table": "users"}):
-            # Do work
-            pass
+        with span("process_image", {"image_size": "1024x768"}):
+            process(image)
     """
     tracer = get_tracer()
     with tracer.start_as_current_span(name) as span_obj:

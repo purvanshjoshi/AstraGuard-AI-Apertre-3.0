@@ -166,14 +166,22 @@ async def load_model() -> bool:
 
 def _detect_anomaly_heuristic(data: Dict) -> Tuple[bool, float]:
     """
-    Heuristic fallback anomaly detection.
-    Conservative approach that prefers false positives to false negatives.
+    Perform rule-based anomaly detection as a fallback mechanism.
+
+    Used when the primary ML model is unavailable (not loaded or failing).
+    Implements a set of "sanity check" rules based on physical constraints
+    (e.g., voltage range, max temperature).
+
+    Design Philosophy:
+    - Conservative: Prefers false positives (safety) over false negatives.
+    - Robust: Handles missing or malformed data gracefully.
+    - Deterministic: Always returns a result given valid input.
 
     Args:
-        data: Telemetry data dictionary
+        data (Dict): Raw telemetry dictionary.
 
     Returns:
-        Tuple of (is_anomalous, anomaly_score)
+        Tuple[bool, float]: (is_anomalous, severity_score)
     """
     # Handle non-dict input gracefully
     if not isinstance(data, dict):

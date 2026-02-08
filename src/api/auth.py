@@ -8,17 +8,18 @@ Uses core authentication logic for API key management and RBAC.
 import os
 import hashlib
 from datetime import datetime
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Callable, Coroutine, Any
 from fastapi import HTTPException, status, Request, Depends
 from fastapi.security import APIKeyHeader
 import logging
-from core.auth import APIKey, APIKeyManager, get_api_key_manager
+from core.auth import APIKey, APIKeyManager
 from core.secrets import get_secret
 
 logger = logging.getLogger(__name__)
 
 # Global API key manager instance
-_api_key_manager = None
+_api_key_manager: Optional[APIKeyManager] = None
+
 
 def get_api_key_manager() -> APIKeyManager:
     """Get the global API key manager instance."""
@@ -31,19 +32,27 @@ def get_api_key_manager() -> APIKeyManager:
 # FastAPI security scheme
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-async def get_api_key(request: Request, api_key: str = Depends(api_key_header)) -> APIKey:
+
+async def get_api_key(
+    request: Request, 
+    api_key: Optional[str] = Depends(api_key_header)
+) -> APIKey:
     """
-    FastAPI dependency for API key authentication.
+    FastAPI dependency for validating API keys.
+
+    Retrieves the 'X-API-Key' header, validates it against the active key store,
+    checks for expiration and rate limits, and returns the key object if valid.
 
     Args:
-        request: FastAPI request object
-        api_key: API key from header
+        request (Request): The incoming FastAPI request.
+        api_key (str): The raw API key string from the header.
 
     Returns:
-        APIKey object if valid
+        APIKey: The validated API key object containing metadata and permissions.
 
     Raises:
-        HTTPException: If authentication fails
+        HTTPException(401): If the key is missing from headers.
+        HTTPException(401): If the key is invalid, expired, or rate-limited.
     """
     if not api_key:
         raise HTTPException(
@@ -68,15 +77,18 @@ async def get_api_key(request: Request, api_key: str = Depends(api_key_header)) 
         )
 
 
-def require_permission(permission: str):
+def require_permission(permission: str) -> Callable[[APIKey], Coroutine[Any, Any, APIKey]]:
     """
-    Create a dependency that requires a specific permission.
+    Create a dependency that requires a specific permission scope.
+
+    Used as a decorator or dependency in FastAPI routes to enforce granular
+    access control (RbAC) based on the permissions associated with the API key.
 
     Args:
-        permission: The permission required (read, write, admin)
+        permission (str): The permission identifier (e.g., 'read', 'write', 'admin').
 
     Returns:
-        FastAPI dependency function
+        Callable: A FastAPI dependency function that validates the permission.
     """
     async def permission_checker(api_key: APIKey = Depends(get_api_key)) -> APIKey:
         if permission not in api_key.permissions:
@@ -90,18 +102,19 @@ def require_permission(permission: str):
 
 
 # Initialize API keys from environment variable (optional)
-def initialize_from_env():
+def initialize_from_env() -> None:
     """Initialize API keys from environment variables."""
-    api_keys_env = get_secret("api_keys")
+    api_keys_env: Optional[str] = get_secret("api_keys")
+    
     if api_keys_env:
         try:
             # Expected format: name1:key1,name2:key2
             key_manager = get_api_key_manager()
             for key_pair in api_keys_env.split(","):
                 if ":" in key_pair:
-                    name, key_value = key_pair.split(":", 1)
-                    name = name.strip()
-                    key_value = key_value.strip()
+                    name_part, key_value_part = key_pair.split(":", 1)
+                    name = name_part.strip()
+                    key_value = key_value_part.strip()
 
                     # Check if key already exists
                     if key_value not in key_manager.api_keys:
@@ -113,9 +126,10 @@ def initialize_from_env():
                             metadata={"source": "environment"}
                         )
                         key_manager.api_keys[key_value] = key
-                        key_manager.key_hashes[hashlib.sha256(key_value.encode()).hexdigest()] = key_value
+                        key_hash = hashlib.sha256(key_value.encode()).hexdigest()
+                        key_manager.key_hashes[key_hash] = key_value
 
-            key_manager._save_keys()
+            key_manager._save_keys()  # type: ignore[attr-defined]
             logger.info("Initialized API keys from environment")
 
         except Exception as e:

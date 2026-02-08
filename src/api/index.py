@@ -1,17 +1,54 @@
 """
-AstraGuard AI - Vercel Serverless Function Entry Point
-Adapts the FastAPI app for Vercel's serverless environment
+AstraGuard AI - Vercel Serverless Function Entry Point.
+
+This module adapts the standard FastAPI application (`api.service.app`) regarding
+Vercel's serverless environment. It handles path resolution for imports when
+running in a restricted lambda environment where the project root might not be
+in `sys.path` by default.
 """
 
 import sys
+import logging
 from pathlib import Path
 
-# Add project root to path for imports
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+logger = logging.getLogger(__name__)
 
-from api.service import app
+# Resolve project root safely
+try:
+    project_root = Path(__file__).parent.parent
+except NameError as e:
+    logger.critical(
+        "__file__ is not defined; cannot resolve project root in serverless environment",
+        exc_info=True,
+    )
+    raise RuntimeError("Invalid runtime environment: __file__ is undefined") from e
 
-# Vercel expects a callable named 'handler' or uses ASGI with app
-# This exports the FastAPI app directly for Vercel
+project_root_str = str(project_root)
+
+if project_root_str not in sys.path:
+    sys.path.insert(0, project_root_str)
+    logger.debug(
+        "Added project root to sys.path",
+        extra={"project_root": project_root_str},
+    )
+
+# Import FastAPI application
+try:
+    from api.service import app
+except ModuleNotFoundError as e:
+    logger.critical(
+        "Failed to import 'api.service.app' (module not found). "
+        "Check project structure and PYTHONPATH.",
+        exc_info=True,
+    )
+    raise
+except ImportError as e:
+    logger.critical(
+        "ImportError while importing 'api.service.app'. "
+        "This may be caused by import-time side effects or missing dependencies.",
+        exc_info=True,
+    )
+    raise
+
+# This exports the FastAPI app 
 __all__ = ["app"]

@@ -34,12 +34,12 @@ jobs:
       - name: Detect package manager
         id: detect-package-manager
         run: |
-          if [ -f "${{ github.workspace }}/frontend/as_lp/yarn.lock" ]; then
+          if [ -f "${{ github.workspace }}/ui/frontend/as_lp/yarn.lock" ]; then
             echo "manager=yarn" >> $GITHUB_OUTPUT
             echo "command=install" >> $GITHUB_OUTPUT
             echo "runner=yarn" >> $GITHUB_OUTPUT
             exit 0
-          elif [ -f "${{ github.workspace }}/frontend/as_lp/package.json" ]; then
+          elif [ -f "${{ github.workspace }}/ui/frontend/as_lp/package.json" ]; then
             echo "manager=npm" >> $GITHUB_OUTPUT
             echo "command=ci" >> $GITHUB_OUTPUT
             echo "runner=npx --no-install" >> $GITHUB_OUTPUT
@@ -53,7 +53,7 @@ jobs:
         with:
           node-version: "20"
           cache: ${{ steps.detect-package-manager.outputs.manager }}
-          cache-dependency-path: frontend/as_lp/package-lock.json
+          cache-dependency-path: ui/frontend/as_lp/package-lock.json
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
@@ -62,20 +62,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            frontend/as_lp/.next/cache
+            ui/frontend/as_lp/.next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-
       - name: Install dependencies
-        working-directory: frontend/as_lp
+        working-directory: ui/frontend/as_lp
         run: ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
       - name: Build with Next.js
-        working-directory: frontend/as_lp
+        working-directory: ui/frontend/as_lp
         run: ${{ steps.detect-package-manager.outputs.runner }} next build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: frontend/as_lp/out
+          path: ui/frontend/as_lp/out
 
   # Deployment job
   deploy:

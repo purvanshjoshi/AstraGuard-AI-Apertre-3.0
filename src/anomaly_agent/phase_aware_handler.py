@@ -37,16 +37,19 @@ logger = logging.getLogger(__name__)
 
 class PhaseAwareAnomalyHandler:
     """
-    Handles anomalies with awareness of mission phase constraints.
-    
+    Orchestrates anomaly response based on mission phase constraints.
+
+    This handler acts as the decision-making brain of the anomaly response system.
+    It does not just report anomalies; it decides *what to do* about them based on
+    pre-defined policies for the current mission phase.
+
     Responsibilities:
-    1. Receive anomaly detection results (type, severity, confidence)
-    2. Query current mission phase from state machine
-    3. Evaluate against phase-specific policies
-    4. Generate phase-aware response decision
-    5. Log all decisions for audit and learning
-    
-    The handler is designed to be called from the anomaly detection pipeline.
+    1.  **Contextualize**: Combine anomaly data with the current mission phase.
+    2.  **Evaluate**: Apply phase-specific policies (e.g., "Ignore minor power
+        fluctuations during Launch", "Escalate thermal issues during Payload Ops").
+    3.  **Decide**: Determine the appropriate action (Log, Warn, Mask, Escalate).
+    4.  **Track**: maintain history for recurrence detection (e.g., "Is this the
+        3rd time this happened in an hour?").
     """
     
     def __init__(
@@ -83,27 +86,24 @@ class PhaseAwareAnomalyHandler:
         anomaly_metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Process an anomaly with phase awareness.
-        
+        Process an anomaly with phase-aware logic and policy enforcement.
+
+        This is the core entry point for the handler. It:
+        1.  Snapshots the current mission phase.
+        2.  Updates recurrence tracking (has this happened recently?).
+        3.  Queries the Policy Engine for a decision.
+        4.  Determines if Safe Mode escalation is required.
+        5.  Constructs a full decision object for logging and downstream action.
+
         Args:
-            anomaly_type: Type of anomaly (e.g., 'power_fault', 'thermal_fault')
-            severity_score: Numeric severity from 0-1
-            confidence: Detection confidence from 0-1
-            anomaly_metadata: Optional additional info (fault_class, subsystem, etc.)
-        
+            anomaly_type (str): The classification tag (e.g., 'power_fault').
+            severity_score (float): Normalized severity [0.0 - 1.0].
+            confidence (float): Model confidence [0.0 - 1.0].
+            anomaly_metadata (Optional[Dict]): Context (e.g., source component).
+
         Returns:
-            Decision dict with:
-            {
-                'success': bool,
-                'anomaly_type': str,
-                'mission_phase': str,
-                'policy_decision': PolicyDecision (as dict),
-                'recommended_action': str,
-                'should_escalate_to_safe_mode': bool,
-                'reasoning': str,
-                'timestamp': datetime,
-                'decision_id': str (unique identifier)
-            }
+            Dict[str, Any]: A comprehensive decision object containing constraints,
+            recommended actions, and escalation flags.
         """
         if anomaly_metadata is None:
             anomaly_metadata = {}

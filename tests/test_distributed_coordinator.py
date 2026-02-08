@@ -20,7 +20,7 @@ from collections import Counter
 
 # Import modules under test
 from backend.redis_client import RedisClient
-from backend.distributed_coordinator import (
+from backend.orchestration.distributed_coordinator import (
     DistributedResilienceCoordinator,
     ConsensusDecision,
 )

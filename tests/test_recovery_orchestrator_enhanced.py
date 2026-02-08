@@ -22,7 +22,7 @@ from unittest.mock import Mock, AsyncMock, patch
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from backend.recovery_orchestrator_enhanced import (
+from backend.orchestration.recovery_orchestrator_enhanced import (
     EnhancedRecoveryOrchestrator,
     RecoveryConfig,
     AnomalyEvent,

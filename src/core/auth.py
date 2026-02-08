@@ -148,13 +148,20 @@ class APIKey:
 
 class APIKeyManager:
     """
-    Manages API keys for authentication and authorization.
+    Manages the lifecycle and validation of API keys for the AstraGuard platform.
+
+    This manager is responsible for:
+    - Loading and saving keys from persistent storage.
+    - Creating new keys with specific permissions and expiration policies.
+    - Validating keys against stored hashes.
+    - Enforcing rate limits per key.
+    - Rotating and revoking keys for security hygiene.
 
     Features:
-    - Multiple API keys with different permissions
-    - Key expiration
-    - Rate limiting
-    - Key rotation support
+    - Multiple active keys per user.
+    - SHA-256 hashing for secure storage (verification only).
+    - Rate limiting with in-memory sliding window.
+    - Environment variable initialization for stateless deployments.
     """
 
     def __init__(self, keys_file: str = "config/api_keys.json"):

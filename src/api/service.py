@@ -483,7 +483,18 @@ def create_response(status: str, data: dict = None, **kwargs) -> dict:
 
 
 def process_telemetry_batch(telemetry_list: list) -> dict:
-    """Process a batch of telemetry data and return aggregated results."""
+    """
+    Process a batch of telemetry data and return aggregated results.
+
+    Iterates through specific telemetry items, running anomaly detection on each.
+    Aggregates statistics on processed items and detected anomalies.
+
+    Args:
+        telemetry_list (list): List of telemetry data dictionaries or objects.
+
+    Returns:
+        dict: Summary containing 'processed' count and 'anomalies_detected' count.
+    """
     processed_count = 0
     anomalies_detected = 0
 
@@ -558,7 +569,7 @@ async def health_check():
 
         # Determine overall status
         all_healthy = all(
-            c.get("status") == "HEALTHY" for c in components.values()
+            c.get("status") == "healthy" for c in components.values()
         )
 
         # Get system uptime
@@ -607,27 +618,35 @@ async def metrics(username: str = Depends(get_current_username)):
 
 @app.post("/api/v1/telemetry", response_model=AnomalyResponse, status_code=status.HTTP_200_OK)
 async def submit_telemetry(telemetry: TelemetryInput, current_user: User = Depends(require_operator)):
-    """Submit single telemetry data point for real-time anomaly detection and analysis.
+    """
+    Submit a single telemetry data point for real-time anomaly detection and analysis.
 
-    This endpoint processes telemetry data through the complete AstraGuard AI pipeline,
-    including anomaly detection, fault classification, predictive maintenance, and
-    phase-aware decision making. The system analyzes sensor readings and provides
-    immediate feedback on system health and recommended actions.
+    This endpoint orchestrates the complete AstraGuard AI pipeline:
+    1. Validates input against physical constraints.
+    2. Runs anomaly detection models (e.g., Isolation Forest, Autoencoder).
+    3. Classifies the type of anomaly if detected.
+    4. Consults the Phase-Aware Handler for context-specific decisions.
+    5. Updates predictive maintenance models.
+
+    The system analyzes sensor readings and provides immediate feedback on system
+    health, recommended actions, and mission phase policy compliance.
 
     Authentication:
         Requires API key with 'operator' role and 'write' permission.
 
     Chaos Engineering:
-        Supports chaos injection for testing resilience (network latency, model failures).
+        Supports chaos injection for testing resilience (e.g., network latency,
+        model failures).
 
     Args:
-        telemetry: TelemetryInput object containing sensor measurements including:
+        telemetry (TelemetryInput): Sensor data from the satellite subsystem including:
             - voltage: Electrical voltage reading
             - temperature: Temperature sensor reading
             - gyro: Gyroscope measurements
             - current: Current draw (optional)
             - wheel_speed: Wheel speed (optional)
             - Additional system metrics (CPU, memory, network, etc.)
+        current_user (User): The authenticated operator.
 
     Returns:
         AnomalyResponse: Comprehensive analysis result containing:
@@ -807,24 +826,32 @@ async def _process_telemetry(telemetry: TelemetryInput, request_start: float) ->
         # Store in history
         anomaly_history.append(response)
 
-        # Store in memory with embedding (simple feature vector) - async to avoid blocking
-        embedding = np.array([
-            telemetry.voltage,
-            telemetry.temperature,
-            abs(telemetry.gyro),
-            telemetry.current or 0.0,
-            telemetry.wheel_speed or 0.0
-        ])
-        await asyncio.to_thread(
-            memory_store.write,
-            embedding=embedding,
-            metadata={
-                "anomaly_type": anomaly_type,
-                "severity": anomaly_score,
-                "critical": decision['should_escalate_to_safe_mode']
-            },
-            timestamp=telemetry.timestamp
-        )
+        # Store in memory with embedding (simple feature vector)
+        try:
+            embedding = np.array([
+                telemetry.voltage,
+                telemetry.temperature,
+                abs(telemetry.gyro),
+                telemetry.current or 0.0,
+                telemetry.wheel_speed or 0.0
+            ], dtype=np.float32)  # Ensure consistent dtype
+            
+            # Validate embedding before writing
+            if not np.isfinite(embedding).all():
+                logger.warning(f"Invalid embedding values detected, skipping memory write: {embedding}")
+            else:
+                memory_store.write(
+                    embedding=embedding,
+                    metadata={
+                        "anomaly_type": anomaly_type,
+                        "severity": anomaly_score,
+                        "critical": decision['should_escalate_to_safe_mode']
+                    },
+                    timestamp=telemetry.timestamp
+                )
+        except Exception as e:
+            # Don't fail the request if memory write fails
+            logger.error(f"Failed to write to memory store: {e}")
 
     else:
         # No anomaly
@@ -865,12 +892,21 @@ async def get_latest_telemetry(api_key: APIKey = Depends(get_api_key)):
 @app.post("/api/v1/telemetry/batch", response_model=BatchAnomalyResponse)
 async def submit_telemetry_batch(batch: TelemetryBatch, current_user: User = Depends(require_operator)):
     """
-    Submit batch of telemetry points for anomaly detection.
+    Submit a batch of telemetry points for efficient anomaly detection.
 
-    Requires API key authentication with 'write' permission.
+    Processes multiple telemetry data points in a single request, suitable for
+    high-throughput streams or buffered data from ground stations.
+
+    Args:
+        batch (TelemetryBatch): A collection of telemetry data points.
+        current_user (User): The authenticated operator submitting the data.
 
     Returns:
-        BatchAnomalyResponse with aggregated results
+        BatchAnomalyResponse: Aggregated results including total processed count,
+        number of anomalies detected, and individual result details.
+
+    Permissions:
+        Requires 'operator' role or higher with 'write' permission.
     """
     # Process telemetry concurrently for better performance
     results = await asyncio.gather(*[submit_telemetry(telemetry) for telemetry in batch.telemetry])
@@ -901,7 +937,7 @@ async def get_status(api_key: APIKey = Depends(get_api_key)):
 
     return SystemStatus(
         status="healthy" if all(
-            c.get("status") == "HEALTHY" for c in components.values()
+            c.get("status") == "healthy" for c in components.values()
         ) else "degraded",
         mission_phase=state_machine.get_current_phase().value,
         components=components,

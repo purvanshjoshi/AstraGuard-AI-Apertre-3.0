@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Request, Depends, Query
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from fastapi.responses import JSONResponse
 
 # Rate limiting
@@ -31,11 +31,14 @@ except ImportError:
     AUTH_AVAILABLE = False
 
 
-async def get_admin_user(request: Request):
-    """Dynamic admin dependency that checks AUTH_AVAILABLE at request time"""
-    if AUTH_AVAILABLE:
-        return await require_admin(request)
-    return None
+if AUTH_AVAILABLE:
+    async def get_admin_user(user = Depends(require_admin)):
+        """Dynamic admin dependency when auth is available"""
+        return user
+else:
+    async def get_admin_user():
+        """No-op admin dependency when auth is unavailable"""
+        return None
 
 
 # Create router
@@ -64,7 +67,8 @@ class ContactSubmission(BaseModel):
     message: str = Field(..., min_length=10, max_length=5000)
     website: Optional[str] = Field(None, description="Honeypot field")
     
-    @validator('name', 'subject', 'message')
+    @field_validator('name', 'subject', 'message')
+    @classmethod
     def sanitize_text(cls, v):
         """Remove dangerous characters to prevent XSS"""
         if v:
@@ -72,7 +76,8 @@ class ContactSubmission(BaseModel):
             v = re.sub(r'[<>"\'&]', '', v)
         return v
     
-    @validator('email')
+    @field_validator('email')
+    @classmethod
     def normalize_email(cls, v):
         """Normalize email to lowercase"""
         return v.lower() if v else v
@@ -109,7 +114,15 @@ class SubmissionsResponse(BaseModel):
 
 # Database initialization
 def init_database():
-    """Initialize SQLite database with contact_submissions table"""
+    """
+    Initialize SQLite database with required tables and indices.
+    
+    Creates the 'contact_submissions' table if it doesn't exist, along with
+    indices on 'submitted_at' and 'status' for query performance.
+    
+    The database file is created at `data/contact_submissions.db` relative to the
+    application root.
+    """
     DATA_DIR.mkdir(exist_ok=True)
     
     conn = sqlite3.connect(DB_PATH)
@@ -212,7 +225,20 @@ def save_submission(
     ip_address: str,
     user_agent: str
 ) -> int:
-    """Save submission to database and return submission ID"""
+    """
+    Persist a contact form submission to the database.
+
+    Args:
+        submission (ContactSubmission): The validated submission data (name, email, message, etc.).
+        ip_address (str): Client IP address for auditing and spam control.
+        user_agent (str): Client User-Agent string.
+
+    Returns:
+        int: The primary key ID of the newly created submission record.
+
+    Raises:
+        sqlite3.Error: If a database error occurs during insertion.
+    """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -355,7 +381,7 @@ async def submit_contact_form(
 async def get_submissions(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    status_filter: Optional[str] = Query(None, regex="^(pending|resolved|spam)$"),
+    status_filter: Optional[str] = Query(None, pattern="^(pending|resolved|spam)$"),
     current_user = Depends(get_admin_user)
 ):
     """
@@ -424,7 +450,7 @@ async def get_submissions(
 @router.patch("/submissions/{submission_id}/status")
 async def update_submission_status(
     submission_id: int,
-    status: str = Query(..., regex="^(pending|resolved|spam)$"),
+    status: str = Query(..., pattern="^(pending|resolved|spam)$"),
     current_user = Depends(get_admin_user)
 ):
     """

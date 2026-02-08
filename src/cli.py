@@ -25,7 +25,16 @@ class FeedbackCLI:
 
     @staticmethod
     def load_pending() -> List[FeedbackEvent]:
-        """Load and validate pending events from feedback_pending.json."""
+        """
+        Load and validate pending feedback events from the local JSON store.
+
+        Reads `feedback_pending.json`, validates each entry against the
+        FeedbackEvent schema, and gracefully handles corruption by clearing
+        invalid files.
+
+        Returns:
+            List[FeedbackEvent]: A list of validated feedback events ready for review.
+        """
         path = Path("feedback_pending.json")
         if not path.exists():
             return []
@@ -43,14 +52,37 @@ class FeedbackCLI:
 
     @staticmethod
     def save_processed(events: List[dict[str, Any]]) -> None:
-        """Save processed events to feedback_processed.json."""
+        """
+        Save processed feedback events to the permanent storage.
+
+        Writes the list of reviewed events to `feedback_processed.json`.
+        This file serves as the dataset for future model retraining.
+
+        Args:
+            events (List[dict[str, Any]]): List of feedback event dictionaries.
+        """
         Path("feedback_processed.json").write_text(
             json.dumps(events, separators=(",", ":"))
         )
 
     @staticmethod
     def review_interactive() -> None:
-        """Main interactive review loop for operator feedback."""
+        """
+        Launch the interactive command-line interface for feedback review.
+
+        Iterates through pending feedback events, prompting the operator to
+        validate or correct the system's decisions. Supported actions:
+        - Confirm (correct)
+        - Flag as insufficient context
+        - Mark as wrong decision
+        - Add optional notes
+
+        Workflow:
+        1.  Load pending events.
+        2.  Present each event details to the user.
+        3.  Capture and validate user input.
+        4.  Save processed events and clear pending queue.
+        """
         pending = FeedbackCLI.load_pending()
         if not pending:
             print("✅ No pending feedback events.")
@@ -103,7 +135,22 @@ def _get_phase_description(phase: str) -> str:
 
 
 def run_status(args: argparse.Namespace) -> None:
-    """Display comprehensive system status and health information."""
+    """
+    Display comprehensive system status and health information.
+
+    Aggregates health metrics from all registered components (database, cache,
+    AI models, etc.) and presents a color-coded status report. Also displays
+    environmental info (OS, Python version) and the current mission phase.
+
+    Exit Codes:
+        0: All systems healthy.
+        1: One or more components FAILED.
+        2: One or more components DEGRADED.
+        3: Missing core dependencies.
+
+    Args:
+        args (argparse.Namespace): Command-line arguments (e.g., --verbose).
+    """
     try:
         from core.component_health import get_health_monitor, HealthStatus
         import platform
@@ -208,7 +255,18 @@ def run_simulation() -> None:
 
 
 def run_report(args: argparse.Namespace) -> None:
-    """Generate and export anomaly reports."""
+    """
+    Generate and export anomaly detection reports.
+
+    Orchestrates the report generation process:
+    1.  Initialize the AnomalyReportGenerator.
+    2.  Calculate the time window based on the `--hours` argument.
+    3.  Export the data to the specified format (JSON or Text).
+    4.  Print a summary to the console.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line arguments.
+    """
     try:
         from anomaly.report_generator import get_report_generator
         from datetime import datetime, timedelta

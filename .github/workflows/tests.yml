@@ -39,18 +39,18 @@ jobs:
     
     - name: Run Black formatter check
       run: |
-        black --check --diff anomaly classifier memory_engine state_machine core
+        black --check --diff src/anomaly src/classifier src/memory_engine src/state_machine src/core
       continue-on-error: true
     
     - name: Run Flake8 linter
       run: |
-        flake8 anomaly classifier memory_engine state_machine core \
+        flake8 src/anomaly src/classifier src/memory_engine src/state_machine src/core \
           --max-line-length=100 --count --show-source --statistics
       continue-on-error: true
     
     - name: Run MyPy type checker
       run: |
-        mypy anomaly classifier memory_engine state_machine core \
+        mypy src/anomaly src/classifier src/memory_engine src/state_machine src/core \
           --ignore-missing-imports --warn-unused-ignores
       continue-on-error: true
 
@@ -82,13 +82,13 @@ jobs:
     
     - name: Run Bandit security check
       run: |
-        bandit -r anomaly classifier memory_engine state_machine core -f json -o bandit-report.json
+        bandit -r src/anomaly src/classifier src/memory_engine src/state_machine src/core -f json -o bandit-report.json
       continue-on-error: true
     
     - name: Run Safety check
       run: |
-        safety check --file=config/requirements.txt
-        safety check --file=config/requirements-dev.txt
+        safety check --file=src/config/requirements.txt
+        safety check --file=src/config/requirements-dev.txt
 
   test:
     name: Test (Python ${{ matrix.python-version }})
@@ -130,8 +130,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        pip install -r config/requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-        pip install -r config/requirements-test.txt
+        pip install -r src/config/requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+        pip install -r src/config/requirements-test.txt
     
     - name: Wait for Redis
       run: |
@@ -163,11 +163,11 @@ jobs:
       run: |
         pytest tests/ \
           -v \
-          --cov=anomaly \
-          --cov=classifier \
-          --cov=memory_engine \
-          --cov=state_machine \
-          --cov=core \
+          --cov=src/anomaly \
+          --cov=src/classifier \
+          --cov=src/memory_engine \
+          --cov=src/state_machine \
+          --cov=src/core \
           --cov-report=term-missing \
           --cov-report=xml \
           --timeout=10 \
@@ -240,8 +240,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        pip install -r config/requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-        pip install -r config/requirements-test.txt
+        pip install -r src/config/requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+        pip install -r src/config/requirements-test.txt
     
     - name: Wait for Redis
       run: |
@@ -273,11 +273,11 @@ jobs:
       run: |
         pytest tests/ \
           -v \
-          --cov=anomaly \
-          --cov=classifier \
-          --cov=memory_engine \
-          --cov=state_machine \
-          --cov=core \
+          --cov=src/anomaly \
+          --cov=src/classifier \
+          --cov=src/memory_engine \
+          --cov=src/state_machine \
+          --cov=src/core \
           --cov-report=xml \
           --timeout=10 \
           --tb=short
