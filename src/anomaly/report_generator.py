@@ -20,7 +20,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 import os
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -225,7 +225,7 @@ class AnomalyReportGenerator:
                 mttr = (anomaly.resolution_time - anomaly.timestamp).total_seconds()
                 resolution_times.append(mttr)
 
-        avg_mttr = sum(resolution_times) / len(resolution_times) if resolution_times else None
+        avg_mttr: Optional[float] = sum(resolution_times) / len(resolution_times) if resolution_times else None
 
         report = {
             "report_metadata": {
@@ -369,7 +369,7 @@ class AnomalyReportGenerator:
 
 
 # Global instance for easy access
-_report_generator = None
+_report_generator: Optional[AnomalyReportGenerator] = None
 
 def get_report_generator() -> AnomalyReportGenerator:
     """Get the global anomaly report generator instance."""
