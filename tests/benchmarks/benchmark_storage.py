@@ -2,7 +2,7 @@ import asyncio
 import time
 import tempfile
 from pathlib import Path
-from src.astraguard.hil.results.storage import ResultStorage
+from astraguard.hil.results.storage import ResultStorage
 
 async def benchmark_storage():
     """Benchmark storage operations before and after optimizations."""
@@ -37,13 +37,13 @@ async def benchmark_storage():
 
         print("Benchmarking get_result_statistics...")
         start_time = time.time()
-        stats = storage.get_result_statistics()
+        stats = await storage.get_result_statistics()
         stats_time = time.time() - start_time
         print(f"Stats time: {stats_time:.4f} seconds")
 
         print("Benchmarking clear_results...")
         start_time = time.time()
-        deleted = storage.clear_results(older_than_days=0)  # Clear all for test
+        deleted = await storage.clear_results(older_than_days=0)  # Clear all for test
         clear_time = time.time() - start_time
         print(f"Clear time: {clear_time:.4f} seconds")
 

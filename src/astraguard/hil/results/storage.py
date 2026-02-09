@@ -8,6 +8,7 @@ Classes:
     ResultStorage: Handles saving, loading, and managing test result data.
 """
 
+import asyncio
 import json
 import logging
 from typing import List, Dict, Any, Optional
@@ -191,7 +192,7 @@ class ResultStorage:
         pattern: str = f"{scenario_name}_*.json"
         result_files: List[Path] = sorted(self.results_dir.glob(pattern), reverse=True)[:limit]
 
-        for result_file in result_files:
+        async def load_result(result_file):
             try:
                 result_data = cast(Dict[str, Any], json.loads(result_file.read_text()))
                 results.append(result_data)
@@ -208,8 +209,8 @@ class ResultStorage:
                 )
         return results
 
-    def get_recent_campaigns(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Retrieve recent campaign summaries.
+    async def get_recent_campaigns(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Retrieve recent campaign summaries asynchronously.
 
         Args:
             limit (int, optional): Maximum campaigns to return. Defaults to 10.
@@ -230,7 +231,7 @@ class ResultStorage:
             self.results_dir.glob("campaign_*.json"), reverse=True
         )[:limit]
 
-        for campaign_file in campaign_files:
+        async def load_campaign(campaign_file):
             try:
                 campaign_data = cast(Dict[str, Any], json.loads(campaign_file.read_text()))
                 campaigns.append(campaign_data)
@@ -246,10 +247,11 @@ class ResultStorage:
                     exc_info=True
                 )
 
-        return campaigns
+        campaigns = await asyncio.gather(*[load_campaign(f) for f in campaign_files])
+        return [c for c in campaigns if c is not None]
 
-    def get_campaign_summary(self, campaign_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieve specific campaign by ID.
+    async def get_campaign_summary(self, campaign_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve specific campaign by ID asynchronously.
 
         Args:
             campaign_id (str): Campaign timestamp ID (YYYYMMDD_HHMMSS).
@@ -290,8 +292,8 @@ class ResultStorage:
             )
             return None
 
-    def get_result_statistics(self) -> Dict[str, Any]:
-        """Get aggregate statistics across all results.
+    async def get_result_statistics(self) -> Dict[str, Any]:
+        """Get aggregate statistics across all results asynchronously.
 
         Returns:
             Dict[str, Any]: Dict with statistics including total_campaigns,
@@ -317,8 +319,8 @@ class ResultStorage:
             "avg_pass_rate": avg_pass_rate,
         }
 
-    def clear_results(self, older_than_days: int = 30) -> int:
-        """Remove old result files.
+    async def clear_results(self, older_than_days: int = 30) -> int:
+        """Remove old result files asynchronously.
 
         Args:
             older_than_days (int, optional): Delete files older than this many days. Defaults to 30.
