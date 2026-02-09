@@ -100,13 +100,6 @@ class AnomalyReportGenerator:
                        mission_phase: str,
                        telemetry_data: Dict[str, Any],
                        explanation: Optional[str] = None) -> None:
-    def record_anomaly(self,
-                       anomaly_type: str,
-                       severity: str,
-                       confidence: float,
-                       mission_phase: str,
-                       telemetry_data: Dict[str, Any],
-                       explanation: Optional[str] = None) -> None:
         """
         Record a new anomaly detection event for reporting.
 
