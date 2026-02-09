@@ -9,7 +9,7 @@ raw probability scores and operator-understandable reasoning.
 from typing import Dict, Any
 import logging
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 def build_explanation(context: Dict[str, Any]) -> Dict[str, Any]:
