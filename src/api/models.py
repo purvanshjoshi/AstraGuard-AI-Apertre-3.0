@@ -141,3 +141,59 @@ class HealthCheckResponse(BaseModel):
     mission_phase: Optional[str] = None
     components_status: Optional[Dict[str, Dict[str, Any]]] = None
     error: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    """User login request."""
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=1)
+
+
+class TokenResponse(BaseModel):
+    """JWT token response."""
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserCreateRequest(BaseModel):
+    """Request to create a new user."""
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=8)
+    role: UserRole
+    email: str = Field(..., min_length=5, max_length=100)
+
+
+class UserResponse(BaseModel):
+    """User information response."""
+    id: str
+    username: str
+    role: str
+    email: str
+    created_at: datetime
+    is_active: bool
+
+
+class APIKeyCreateRequest(BaseModel):
+    """Request to create a new API key."""
+    name: str = Field(..., min_length=1, max_length=50)
+    permissions: List[str] = Field(..., min_length=1)
+
+
+class APIKeyResponse(BaseModel):
+    """API key information response."""
+    id: str
+    name: str
+    permissions: List[str]
+    created_at: datetime
+    expires_at: Optional[datetime]
+    last_used: Optional[datetime]
+
+
+class APIKeyCreateResponse(BaseModel):
+    """Response after creating an API key."""
+    id: str
+    name: str
+    key: str
+    permissions: List[str]
+    created_at: datetime
+    expires_at: Optional[datetime]
