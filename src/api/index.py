@@ -25,11 +25,6 @@ except NameError as e:
     raise RuntimeError("Invalid runtime environment: __file__ is undefined") from e
 
 project_root_str: str = str(project_root)
-
-if project_root_str not in sys.path:
-    sys.path.insert(0, project_root_str)
-    logger.debug(
-        "Added project root to sys.path",
         extra={"project_root": project_root_str},
     )
 

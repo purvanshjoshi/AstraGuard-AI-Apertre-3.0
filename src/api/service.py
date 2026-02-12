@@ -276,7 +276,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Cleanup
     if memory_store:
-        memory_store.save()
+        await memory_store.save()
     if redis_client:
         await redis_client.close()
 
@@ -710,7 +710,7 @@ async def _process_telemetry(telemetry: TelemetryInput, request_start: float) ->
             telemetry.current or 0.0,
             telemetry.wheel_speed or 0.0
         ])
-        memory_store.write(
+        await memory_store.write(
             embedding=embedding,
             metadata={
                 "anomaly_type": anomaly_type,

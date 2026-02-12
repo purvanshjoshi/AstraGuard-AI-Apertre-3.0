@@ -103,8 +103,7 @@ class AdaptiveMemoryStore:
         self.storage_path = "memory_engine/memory_store.pkl"
         self._lock = threading.RLock()  # Reentrant lock for thread safety
 
-    @with_timeout(seconds=3.0, operation_name="memory_write")
-    def write(
+    async def write(
         self,
         embedding: Union[List[float], "np.ndarray"],
         metadata: Dict,
@@ -264,9 +263,7 @@ class AdaptiveMemoryStore:
             # Extract metadata
             return [event.metadata for event in filtered_events]
 
-    @with_timeout(seconds=60.0)
-    @monitor_operation_resources()
-    def save(self) -> None:
+    async def save(self) -> None:
         """Persist memory to disk with path validation and file locking."""
         with self._lock:
             try:
