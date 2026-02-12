@@ -303,7 +303,7 @@ class ResultStorage:
             Dict[str, Any]: Dict with statistics including total_campaigns,
                 total_scenarios, total_passed, and avg_pass_rate.
         """
-        campaigns: List[Dict[str, Any]] = self.get_recent_campaigns(limit=999)
+        campaigns: List[Dict[str, Any]] = await self.get_recent_campaigns(limit=999)
         if not campaigns:
             return {
                 "total_campaigns": 0,
