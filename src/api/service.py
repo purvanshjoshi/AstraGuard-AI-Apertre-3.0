@@ -15,8 +15,9 @@ from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator, Deque, Dict, List, Optional, Tuple, Union
 import secrets
+import asyncio
 from core.secrets import get_secret, mask_secret
 from pydantic import BaseModel
 
@@ -98,20 +99,20 @@ except ImportError:
 MAX_ANOMALY_HISTORY_SIZE: int = 10000  # Maximum number of anomalies to keep in memory
 
 # Global state
-state_machine = None
-policy_loader = None
-phase_aware_handler = None
-memory_store = None
-predictive_engine = None
-latest_telemetry_data = None # Store latest telemetry for dashboard
-anomaly_history = deque(maxlen=MAX_ANOMALY_HISTORY_SIZE)  # Bounded deque prevents memory exhaustion
-active_faults = {} # Stores active chaos experiments: {fault_type: expiration_timestamp}
+state_machine: Optional[StateMachine] = None
+policy_loader: Optional[MissionPhasePolicyLoader] = None
+phase_aware_handler: Optional[PhaseAwareAnomalyHandler] = None
+memory_store: Optional[AdaptiveMemoryStore] = None
+predictive_engine: Optional[Any] = None
+latest_telemetry_data: Optional[Dict[str, Any]] = None  # Store latest telemetry for dashboard
+anomaly_history: Deque[AnomalyResponse] = deque(maxlen=MAX_ANOMALY_HISTORY_SIZE)  # Bounded deque prevents memory exhaustion
+active_faults: Dict[str, float] = {}  # Stores active chaos experiments: {fault_type: expiration_timestamp}
 
 # Locks for global state protection
-telemetry_lock = Lock()
-anomaly_lock = Lock()
-faults_lock = Lock()
-start_time = time.time()
+telemetry_lock: Lock = Lock()
+anomaly_lock: Lock = Lock()
+faults_lock: Lock = Lock()
+start_time: float = time.time()
 
 
 # Rate limiting
@@ -376,7 +377,7 @@ async def check_chaos_injection(fault_type: str) -> bool:
     """Check if a chaos fault is currently active."""
     async with faults_lock:
         if fault_type in active_faults:
-            expiration = active_faults[fault_type]
+            expiration: float = active_faults[fault_type]
             if time.time() > expiration:
                 del active_faults[fault_type]
                 return False
@@ -384,20 +385,18 @@ async def check_chaos_injection(fault_type: str) -> bool:
         return False
 
 
-async def cleanup_expired_faults():
-
+async def cleanup_expired_faults() -> None:
     """Clean up expired chaos faults."""
-    current_time = time.time()
+    current_time: float = time.time()
     async with faults_lock:
-        expired = [k for k, v in active_faults.items() if current_time > v]
+        expired: List[str] = [k for k, v in active_faults.items() if current_time > v]
         for k in expired:
             del active_faults[k]
 
 
-async def inject_chaos_fault(fault_type: str, duration_seconds: int) -> dict:
-
+async def inject_chaos_fault(fault_type: str, duration_seconds: int) -> Dict[str, Any]:
     """Inject a chaos fault for the specified duration."""
-    expiration = time.time() + duration_seconds
+    expiration: float = time.time() + duration_seconds
     async with faults_lock:
         active_faults[fault_type] = expiration
     return {
@@ -419,84 +418,14 @@ def create_response(status: str, data: Optional[Dict[str, Any]] = None, **kwargs
     return response
 
 
-async def process_single_telemetry(telemetry: dict) -> dict:
-    """
-    Process a single telemetry item.
-    
-    Args:
-        telemetry: Telemetry data dictionary
-    
-    Returns:
-        dict with 'success', 'anomaly_detected', 'anomaly' (if detected), 'error'
-    """
-    try:
-        # Check for anomalies (detect_anomaly is already async)
-        anomaly_score = await anomaly_detector.detect_anomaly(telemetry)
-        
-        if anomaly_score > 0.7:
-            # Create anomaly event
-            anomaly = AnomalyEvent(
-                timestamp=datetime.now(),
-                metric=telemetry.get('metric', 'unknown'),
-                value=telemetry.get('value', 0.0),
-                severity_score=anomaly_score,
-                context=telemetry
-            )
-            
-            return {
-                'success': True,
-                'anomaly_detected': True,
-                'anomaly': anomaly
-            }
-        
-        return {
-            'success': True,
-            'anomaly_detected': False
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to process telemetry: {e}", exc_info=True)
-        return {
-            'success': False,
-            'error': str(e),
-            'anomaly_detected': False
-        }
+async def process_telemetry_batch(telemetry_list: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Process a batch of telemetry data and return aggregated results."""
+    processed_count: int = 0
+    anomalies_detected: int = 0
 
-
-async def process_telemetry_batch(telemetry_list: list) -> dict:
-    """
-    Process a batch of telemetry data concurrently.
-    
-    Uses asyncio.gather() to process items in parallel for better performance.
-    
-    Args:
-        telemetry_list: List of telemetry data dictionaries
-    
-    Returns:
-        dict with 'processed' count and 'anomalies_detected' count
-    """
-    if not telemetry_list:
-        return {"processed": 0, "anomalies_detected": 0}
-    
-    # Create tasks for concurrent processing
-    tasks = [process_single_telemetry(t) for t in telemetry_list]
-    
-    # Process concurrently with error handling
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # Aggregate results
-    processed_count = 0
-    anomalies_detected = 0
-    detected_anomalies = []
-    
-    for result in results:
-        # Handle exceptions from gather
-        if isinstance(result, Exception):
-            logger.error(f"Task failed with exception: {result}", exc_info=True)
-            continue
-        
-        # Count successful processing
-        if result.get('success'):
+    for telemetry in telemetry_list:
+        try:
+            # Process individual telemetry (extracted from submit_telemetry logic)
             processed_count += 1
             
             # Collect detected anomalies
@@ -617,7 +546,7 @@ async def health_live() -> Dict[str, Any]:
 
 
 @app.get("/health/ready")
-async def health_ready() -> Dict[str, Any]:
+async def health_ready() -> Response:
     """
     Readiness probe endpoint.
     
@@ -721,7 +650,7 @@ async def metrics(username: str = Depends(get_current_username)) -> Response:
 
 
 @app.post("/api/v1/telemetry", response_model=AnomalyResponse, status_code=status.HTTP_200_OK)
-async def submit_telemetry(telemetry: TelemetryInput, current_user: User = Depends(require_operator)):
+async def submit_telemetry(telemetry: TelemetryInput, current_user: User = Depends(require_operator)) -> AnomalyResponse:
     """
     Submit single telemetry point for anomaly detection.
 
@@ -934,7 +863,7 @@ async def get_latest_telemetry(api_key: APIKey = Depends(get_api_key)) -> Dict[s
 
 
 @app.post("/api/v1/telemetry/batch", response_model=BatchAnomalyResponse)
-async def submit_telemetry_batch(batch: TelemetryBatch, current_user: User = Depends(require_operator)):
+async def submit_telemetry_batch(batch: TelemetryBatch, current_user: User = Depends(require_operator)) -> BatchAnomalyResponse:
     """
     Submit batch of telemetry points for anomaly detection.
 
@@ -975,8 +904,10 @@ async def submit_telemetry_batch(batch: TelemetryBatch, current_user: User = Dep
             )
             processed_results.append(error_response)
         else:
-            processed_results.append(result)
-            if result.is_anomaly:
+            # Type narrowing: result is AnomalyResponse after excluding BaseException
+            anomaly_result: AnomalyResponse = result
+            processed_results.append(anomaly_result)
+            if anomaly_result.is_anomaly:
                 anomalies_detected += 1
 
     return BatchAnomalyResponse(
@@ -987,7 +918,7 @@ async def submit_telemetry_batch(batch: TelemetryBatch, current_user: User = Dep
 
 
 @app.get("/api/v1/status", response_model=SystemStatus)
-async def get_status(api_key: APIKey = Depends(get_api_key)):
+async def get_status(api_key: APIKey = Depends(get_api_key)) -> SystemStatus:
     """Get system health and status.
 
     Requires API key authentication with 'read' permission.
@@ -1037,7 +968,7 @@ async def get_phase(api_key: APIKey = Depends(get_api_key)) -> Dict[str, Any]:
 
 
 @app.post("/api/v1/phase", response_model=PhaseUpdateResponse)
-async def update_phase(request: PhaseUpdateRequest, current_user: User = Depends(require_phase_update)):
+async def update_phase(request: PhaseUpdateRequest, current_user: User = Depends(require_phase_update)) -> PhaseUpdateResponse:
     """Update mission phase."""
     assert state_machine is not None
     
@@ -1070,7 +1001,7 @@ async def update_phase(request: PhaseUpdateRequest, current_user: User = Depends
 
 
 @app.get("/api/v1/memory/stats", response_model=MemoryStats)
-async def get_memory_stats(api_key: APIKey = Depends(get_api_key)):
+async def get_memory_stats(api_key: APIKey = Depends(get_api_key)) -> MemoryStats:
     """Query memory store statistics.
 
     Requires API key authentication with 'read' permission.
