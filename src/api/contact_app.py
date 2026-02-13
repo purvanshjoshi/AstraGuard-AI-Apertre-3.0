@@ -3,9 +3,14 @@ Lightweight FastAPI app exposing only the contact router.
 This avoids importing the full `api.service` and its heavy dependencies
 so the contact endpoints can be run independently during development.
 """
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
+
+from api.contact import router as contact_router
+
+logger = logging.getLogger(__name__)
 
 
 
