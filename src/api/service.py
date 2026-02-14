@@ -55,6 +55,7 @@ from core.auth import (
     APIKey,
 )
 from api.auth import get_api_key
+from api.logging_middleware import RequestLoggingMiddleware, get_correlation_id
 from state_machine.state_engine import StateMachine, MissionPhase
 from config.mission_phase_policy_loader import MissionPhasePolicyLoader
 from anomaly_agent.phase_aware_handler import PhaseAwareAnomalyHandler
@@ -309,6 +310,15 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept"],
+)
+
+# Request logging middleware
+log_level = get_secret("log_level", "INFO")
+sample_rate = float(get_secret("log_sample_rate", "0.1"))  # 10% sampling for high-traffic endpoints
+app.add_middleware(
+    RequestLoggingMiddleware,
+    log_level=log_level,
+    sample_rate=sample_rate,
 )
 
 security = HTTPBasic()
