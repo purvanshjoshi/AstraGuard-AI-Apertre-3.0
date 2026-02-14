@@ -6,7 +6,7 @@ automated anomaly detection and response decisions. It bridges the gap between
 raw probability scores and operator-understandable reasoning.
 """
 
-from typing import Dict, Any, List, Optional, Union, TypedDict
+from typing import Dict, Any, List, Union, TypedDict
 import logging
 
 

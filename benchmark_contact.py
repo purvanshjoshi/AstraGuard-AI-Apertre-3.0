@@ -40,8 +40,8 @@ async def benchmark_save_submission():
 
     total_time = end_time - start_time
     avg_time = total_time / num_iterations
-    print(".4f")
-    print(".6f")
+    print(f"Total time: {total_time:.4f}s")
+    print(f"Average time per operation: {avg_time:.6f}s")
 
     return total_time
 
@@ -79,8 +79,8 @@ async def benchmark_log_notification():
 
         total_time = end_time - start_time
         avg_time = total_time / num_iterations
-        print(".4f")
-        print(".6f")
+        print(f"Total time: {total_time:.4f}s")
+        print(f"Average time per operation: {avg_time:.6f}s")
 
         # Check file size
         file_size = os.path.getsize(temp_log)
@@ -129,8 +129,8 @@ async def benchmark_combined():
 
         total_time = end_time - start_time
         avg_time = total_time / num_iterations
-        print(".4f")
-        print(".6f")
+        print(f"Total time: {total_time:.4f}s")
+        print(f"Average time per operation: {avg_time:.6f}s")
 
     finally:
         api.contact.NOTIFICATION_LOG = original_log
@@ -156,10 +156,10 @@ async def main():
         print()
 
         print("Benchmark Summary:")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".4f")
+        print(f"save_submission: {save_time:.4f}s")
+        print(f"log_notification: {log_time:.4f}s")
+        print(f"combined: {combined_time:.4f}s")
+        print(f"Total: {save_time + log_time + combined_time:.4f}s")
 
         print("\nBenchmark complete! Async I/O optimizations are working.")
 

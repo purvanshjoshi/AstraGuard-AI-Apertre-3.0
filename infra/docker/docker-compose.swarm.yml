@@ -17,7 +17,9 @@ services:
     build:
       context: ../../
       dockerfile: infra/docker/Dockerfile
-    container_name: astra-agent-1
+    build:
+      context: ../../
+      dockerfile: infra/docker/Dockerfile
     hostname: astra-agent-1
     environment:
       # Core configuration
@@ -69,11 +71,11 @@ services:
         condition: service_started
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
     
     restart: unless-stopped
 
@@ -83,7 +85,9 @@ services:
     build:
       context: ../../
       dockerfile: infra/docker/Dockerfile
-    container_name: astra-agent-2
+    build:
+      context: ../../
+      dockerfile: infra/docker/Dockerfile
     hostname: astra-agent-2
     environment:
       - SWARM_MODE_ENABLED=true
@@ -122,11 +126,11 @@ services:
         condition: service_started
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
     
     restart: unless-stopped
 
@@ -174,11 +178,11 @@ services:
         condition: service_started
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
     
     restart: unless-stopped
 
@@ -226,11 +230,11 @@ services:
         condition: service_started
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
     
     restart: unless-stopped
 
@@ -278,11 +282,11 @@ services:
         condition: service_started
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
     
     restart: unless-stopped
 

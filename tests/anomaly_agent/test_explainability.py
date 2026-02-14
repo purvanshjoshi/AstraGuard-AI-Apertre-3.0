@@ -21,7 +21,7 @@ from unittest.mock import patch, MagicMock
 from typing import Dict, Any
 
 # Import the module to test
-from src.anomaly_agent.explainability import build_explanation
+from anomaly_agent.explainability import build_explanation
 
 
 class TestBuildExplanationValidInputs:
@@ -231,7 +231,7 @@ class TestBuildExplanationTypeValidation:
 
     def test_build_explanation_logs_error_on_invalid_type(self):
         """Test that error is logged when invalid type is passed."""
-        with patch('src.anomaly_agent.explainability.logger') as mock_logger:
+        with patch('anomaly_agent.explainability.logger') as mock_logger:
             try:
                 build_explanation("invalid")
             except TypeError:
@@ -284,7 +284,7 @@ class TestBuildExplanationConfidenceValidation:
 
     def test_build_explanation_logs_error_on_invalid_confidence(self):
         """Test that error is logged when invalid confidence is provided."""
-        with patch('src.anomaly_agent.explainability.logger') as mock_logger:
+        with patch('anomaly_agent.explainability.logger') as mock_logger:
             context = {"confidence": "invalid"}
             
             try:
@@ -508,7 +508,7 @@ class TestBuildExplanationLogging:
 
     def test_build_explanation_logs_type_error_with_correct_type(self):
         """Test that TypeError logging includes the actual type received."""
-        with patch('src.anomaly_agent.explainability.logger') as mock_logger:
+        with patch('anomaly_agent.explainability.logger') as mock_logger:
             try:
                 build_explanation(123)
             except TypeError:
@@ -523,7 +523,7 @@ class TestBuildExplanationLogging:
 
     def test_build_explanation_logs_value_error_with_confidence(self):
         """Test that ValueError logging includes the invalid confidence value."""
-        with patch('src.anomaly_agent.explainability.logger') as mock_logger:
+        with patch('anomaly_agent.explainability.logger') as mock_logger:
             try:
                 build_explanation({"confidence": "bad_value"})
             except ValueError:
@@ -538,7 +538,7 @@ class TestBuildExplanationLogging:
 
     def test_build_explanation_includes_exc_info_on_confidence_error(self):
         """Test that exc_info=True is used when logging confidence errors."""
-        with patch('src.anomaly_agent.explainability.logger') as mock_logger:
+        with patch('anomaly_agent.explainability.logger') as mock_logger:
             try:
                 build_explanation({"confidence": "invalid"})
             except ValueError:
