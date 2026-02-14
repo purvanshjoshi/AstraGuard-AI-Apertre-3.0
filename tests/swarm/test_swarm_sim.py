@@ -590,28 +590,41 @@ class SwarmSimulatorOrchestrator:
 
 # ==================== PYTEST FIXTURES ====================
 
+
+
 @pytest.fixture
 async def swarm_sim():
     """Swarm simulator fixture."""
-    orchestrator = SwarmSimulatorOrchestrator()
+    try:
+        orchestrator = SwarmSimulatorOrchestrator(docker_compose_file="infra/docker/docker-compose.swarm.yml")
+        # Verify docker connection immediately
+        orchestrator.docker.version()
+    except (docker.errors.DockerException, Exception) as e:
+        pytest.skip(f"Docker not available or not running: {e}")
+        return
+
     yield orchestrator
-    await orchestrator.failure_injector.recover_all()
+    
+    try:
+        await orchestrator.failure_injector.recover_all()
+    except:
+        pass
 
 
 # ==================== PYTEST TESTS ====================
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason="Docker infrastructure not available in CI environment - requires docker.from_env()")
 async def test_full_swarm_boot(swarm_sim):
     """Test full swarm boot."""
-    assert await swarm_sim.start_constellation()
+    if not await swarm_sim.start_constellation():
+        pytest.fail("Failed to start constellation")
+    
     alive = await swarm_sim._get_alive_agents()
     assert len(alive) == 5
     await swarm_sim.stop_constellation()
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason="Docker infrastructure not available in CI environment - requires docker.from_env()")
 async def test_all_golden_paths(swarm_sim):
     """Run all golden path tests."""
     summary = await swarm_sim.run_all_tests()

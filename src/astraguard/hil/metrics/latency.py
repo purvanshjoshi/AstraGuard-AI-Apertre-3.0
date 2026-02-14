@@ -3,6 +3,7 @@
 import time
 import csv
 import logging
+import heapq
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -26,10 +27,10 @@ class LatencyMeasurement:
 class LatencyCollector:
     """Captures high-resolution timing data across swarm (10Hz cadence)."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize collector with empty measurements."""
         self.measurements: List[LatencyMeasurement] = []
-        self._start_time = time.time()
+        self._start_time: float = time.time()
         self._measurement_log: Dict[str, int] = defaultdict(int)
 
     def record_fault_detection(
@@ -177,12 +178,12 @@ class LatencyCollector:
         if not self.measurements:
             return {}
 
-        by_satellite = defaultdict(lambda: defaultdict(list))
+        by_satellite: Dict[str, Dict[str, List[float]]] = defaultdict(lambda: defaultdict(list))
 
         for m in self.measurements:
             by_satellite[m.satellite_id][m.metric_type].append(m.duration_ms)
 
-        stats = {}
+        stats: Dict[str, Dict[str, Any]] = {}
         for sat_id, metrics in by_satellite.items():
             stats[sat_id] = {}
             for metric_type, latencies in metrics.items():
@@ -277,7 +278,7 @@ class LatencyCollector:
         count = len(latencies)
 
         # Use heapq to find percentiles without full sort
-        def nth_smallest(n):
+        def nth_smallest(n: int) -> float:
             return heapq.nsmallest(n, latencies)[-1] if n <= count else latencies[-1]
 
         p50_index = count // 2 + 1
