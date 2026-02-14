@@ -12,6 +12,7 @@ import re
 import logging
 import sqlite3
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Any, Union
@@ -60,6 +61,9 @@ DB_PATH: Path = DATA_DIR / "contact_submissions.db"
 NOTIFICATION_LOG: Path = DATA_DIR / "contact_notifications.log"
 CONTACT_EMAIL: str = os.getenv("CONTACT_EMAIL", "support@astraguard.ai")
 SENDGRID_API_KEY: Optional[str] = os.getenv("SENDGRID_API_KEY", None)
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 
 _raw_trusted: str = os.getenv("TRUSTED_PROXIES", "")
