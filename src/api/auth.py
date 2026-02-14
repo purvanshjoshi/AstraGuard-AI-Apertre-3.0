@@ -8,7 +8,7 @@ Uses core authentication logic for API key management and RBAC.
 import os
 import hashlib
 from datetime import datetime
-from typing import Dict, List, Optional, Set, Callable, Coroutine, Any
+from typing import Dict, List, Optional, Set, Callable, Awaitable
 from fastapi import HTTPException, status, Request, Depends
 from fastapi.security import APIKeyHeader
 import logging
@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 # Global API key manager instance
 _api_key_manager: Optional[APIKeyManager] = None
-
 
 def get_api_key_manager() -> APIKeyManager:
     """Get the global API key manager instance."""
@@ -77,7 +76,8 @@ async def get_api_key(
         )
 
 
-def require_permission(permission: str) -> Callable[[APIKey], Coroutine[Any, Any, APIKey]]:
+def require_permission(permission: str) -> Callable[[APIKey], Awaitable[APIKey]]:
+
     """
     Create a dependency that requires a specific permission scope.
 

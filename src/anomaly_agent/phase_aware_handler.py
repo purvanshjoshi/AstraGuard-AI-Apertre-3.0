@@ -13,7 +13,7 @@ depending on the current mission phase.
 """
 
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from dataclasses import asdict
 from datetime import datetime, timedelta
 import json
@@ -35,7 +35,61 @@ from anomaly_agent.explainability import build_explanation
 from anomaly.report_generator import get_report_generator
 
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
+
+def _log_with_context(
+    logger_method,
+    message: str,
+    decision_id: Optional[str] = None,
+    anomaly_type: Optional[str] = None,
+    **extra_context
+):
+    """
+    Helper to add consistent context to logs.
+    
+    Args:
+        logger_method: Logger method to call (logger.info, logger.error, etc.)
+        message: Log message
+        decision_id: Optional decision ID
+        anomaly_type: Optional anomaly type
+        **extra_context: Additional context fields
+    """
+    context = {}
+    if decision_id:
+        context['decision_id'] = decision_id
+    if anomaly_type:
+        context['anomaly_type'] = anomaly_type
+    context.update(extra_context)
+    
+    logger_method(message, extra=context)
+
+
+def _log_with_context(
+    logger_method,
+    message: str,
+    decision_id: Optional[str] = None,
+    anomaly_type: Optional[str] = None,
+    **extra_context
+):
+    """
+    Helper to add consistent context to logs.
+    
+    Args:
+        logger_method: Logger method to call (logger.info, logger.error, etc.)
+        message: Log message
+        decision_id: Optional decision ID
+        anomaly_type: Optional anomaly type
+        **extra_context: Additional context fields
+    """
+    context = {}
+    if decision_id:
+        context['decision_id'] = decision_id
+    if anomaly_type:
+        context['anomaly_type'] = anomaly_type
+    context.update(extra_context)
+    
+    logger_method(message, extra=context)
+
 
 
 class PhaseAwareAnomalyHandler:
@@ -60,7 +114,7 @@ class PhaseAwareAnomalyHandler:
         state_machine: StateMachine,
         policy_loader: Optional[MissionPhasePolicyLoader] = None,
         enable_recurrence_tracking: bool = True
-    ):
+    ) -> None:
         """
         Initialize the phase-aware anomaly handler.
         
@@ -76,9 +130,7 @@ class PhaseAwareAnomalyHandler:
         
         # Recurrence tracking - optimized data structures
         self.enable_recurrence_tracking = enable_recurrence_tracking
-        self.anomaly_history = []  # Keep for backward compatibility
-        self._anomaly_counts = defaultdict(int)  # Fast count lookups by type
-        self._anomaly_timestamps = defaultdict(list)  # Timestamps by type for window queries
+        self.anomaly_history: List[Tuple[str, datetime]] = []  # List of (anomaly_type, timestamp) tuples
         self.recurrence_window = timedelta(seconds=3600)  # 1 hour default
         
         logger.info("Phase-aware anomaly handler initialized")
@@ -113,9 +165,31 @@ class PhaseAwareAnomalyHandler:
         """
         if anomaly_metadata is None:
             anomaly_metadata = {}
+
+        # Validate inputs
+        if not isinstance(anomaly_type, str) or not anomaly_type.strip():
+            raise ValueError("anomaly_type must be a non-empty string")
+
+        if not (0 <= severity_score <= 1):
+            raise ValueError(f"severity_score must be between 0 and 1, got {severity_score}")
+
+        if not (0 <= confidence <= 1):
+            raise ValueError(f"confidence must be between 0 and 1, got {confidence}")
+
+        if not isinstance(anomaly_metadata, dict):
+            raise TypeError(f"anomaly_metadata must be a dict, got {type(anomaly_metadata)}")
+
         
         # Get current mission phase
-        current_phase = self.state_machine.get_current_phase()
+        try:
+            current_phase = self.state_machine.get_current_phase()
+        except (AttributeError, RuntimeError) as e:
+            logger.error(
+                f"Failed to get current mission phase: {e}. Defaulting to NOMINAL_OPS.",
+                exc_info=True
+            )
+            current_phase = MissionPhase.NOMINAL_OPS  # Safe default
+
         
         # Track recurrence
         recurrence_info = self._update_recurrence_tracking(anomaly_type)
@@ -176,8 +250,22 @@ class PhaseAwareAnomalyHandler:
                 type=anomaly_type, 
                 severity=severity_level
             ).inc()
+        except (AttributeError, KeyError) as e:
+            logger.warning(
+                f"Failed to update metrics for anomaly '{anomaly_type}': {e}. "
+                f"Policy decision may be missing severity field.",
+                extra={
+                    'anomaly_type': anomaly_type,
+                    'policy_decision': asdict(policy_decision) if policy_decision else None
+                }
+            )
         except Exception as e:
-            logger.warning(f"Failed to update metrics: {e}")
+            # Catch-all for unexpected Prometheus errors
+            logger.error(
+                f"Unexpected error updating Prometheus metrics: {e}",
+                exc_info=True,
+                extra={'anomaly_type': anomaly_type}
+            )
         
         # Log the decision
         self._log_decision(decision)
@@ -242,35 +330,7 @@ class PhaseAwareAnomalyHandler:
             'time_since_last_seconds': time_since_last
         }
     
-    def _cleanup_old_entries(self, now: datetime):
-        """
-        Clean up old entries from history and optimized data structures.
-        Called periodically to prevent unbounded memory growth.
-        """
-        cutoff = now - timedelta(hours=24)
-        
-        # Clean main history list
-        self.anomaly_history = [
-            (a_type, ts) for a_type, ts in self.anomaly_history
-            if ts >= cutoff
-        ]
-        
-        # Clean optimized data structures
-        for anomaly_type in list(self._anomaly_timestamps.keys()):
-            # Filter timestamps within window
-            self._anomaly_timestamps[anomaly_type] = [
-                ts for ts in self._anomaly_timestamps[anomaly_type]
-                if ts >= cutoff
-            ]
-            # Update count to match filtered timestamps
-            self._anomaly_counts[anomaly_type] = len(self._anomaly_timestamps[anomaly_type])
-            # Remove empty entries
-            if not self._anomaly_timestamps[anomaly_type]:
-                del self._anomaly_timestamps[anomaly_type]
-                del self._anomaly_counts[anomaly_type]
-
-    
-    def _execute_escalation(self, decision: Dict[str, Any]):
+    def _execute_escalation(self, decision: Dict[str, Any]) -> None:
         """
         Execute escalation to SAFE_MODE.
         
@@ -280,16 +340,42 @@ class PhaseAwareAnomalyHandler:
             logger.warning(
                 f"Escalating to SAFE_MODE due to {decision['anomaly_type']} "
                 f"(severity: {decision['severity_score']:.2f}, "
-                f"phase: {decision['mission_phase']})"
+                f"phase: {decision['mission_phase']}, "
+                f"decision_id: {decision['decision_id']})"
             )
             
             # Force transition to SAFE_MODE
             escalation_result = self.state_machine.force_safe_mode()
             
-            logger.info(f"Escalation executed: {escalation_result['message']}")
+            logger.info(
+                f"Escalation executed: {escalation_result['message']}",
+                extra={'decision_id': decision['decision_id']}
+            )
             
+        except (RuntimeError, ValueError) as e:
+            logger.error(
+                f"State machine escalation failed for decision {decision['decision_id']}: {e}. "
+                f"Current phase: {decision['mission_phase']}, Target: SAFE_MODE",
+                exc_info=True,
+                extra={
+                    'decision_id': decision['decision_id'],
+                    'anomaly_type': decision['anomaly_type'],
+                    'current_phase': decision['mission_phase']
+                }
+            )
+        except AttributeError as e:
+            logger.error(
+                f"Invalid state machine or decision structure: {e}",
+                exc_info=True,
+                extra={'decision_id': decision.get('decision_id', 'UNKNOWN')}
+            )
         except Exception as e:
-            logger.error(f"Failed to execute escalation: {e}", exc_info=True)
+            logger.critical(
+                f"Unexpected escalation failure: {e}. System may be in inconsistent state!",
+                exc_info=True,
+                extra={'decision_id': decision.get('decision_id', 'UNKNOWN')}
+            )
+
 
     def _log_decision(self, decision: Dict[str, Any]):
 
@@ -314,7 +400,7 @@ class PhaseAwareAnomalyHandler:
         self, 
         decision: Dict[str, Any], 
         anomaly_metadata: Dict[str, Any]
-    ):
+    ) -> None:
         """
         Record anomaly decision for operator feedback loop.
         
@@ -328,7 +414,6 @@ class PhaseAwareAnomalyHandler:
                 mission_phase=decision['mission_phase'],
                 timestamp=decision['timestamp'],
                 confidence_score=decision['detection_confidence'],
-                # label is None by default for pending events
             )
             
             pending_file = Path("feedback_pending.json")
@@ -338,21 +423,68 @@ class PhaseAwareAnomalyHandler:
                 try:
                     content = pending_file.read_text()
                     if content.strip():
-                        # Load existing events
                         raw_events = json.loads(content)
-                        # We don't need to validate all existing ones strictly here, just append
-                        events = raw_events
-                except json.JSONDecodeError:
-                    logger.warning("Corrupt pending feedback file, starting fresh.")
+                        events = raw_events if isinstance(raw_events, list) else []
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        f"Corrupt pending feedback file, starting fresh: {e}",
+                        extra={'file_path': str(pending_file)}
+                    )
+                except (IOError, OSError) as e:
+                    logger.error(
+                        f"Failed to read feedback file: {e}",
+                        extra={'file_path': str(pending_file)}
+                    )
+                    return  # Can't proceed without reading existing data
             
-            # Append new event
             events.append(event.model_dump(mode='json'))
-            
-            # Write back
             pending_file.write_text(json.dumps(events, indent=2))
             
+            logger.debug(
+                f"Recorded feedback event for decision {decision['decision_id']}",
+                extra={'decision_id': decision['decision_id'], 'total_events': len(events)}
+            )
+            
+        except (IOError, OSError, PermissionError) as e:
+            logger.error(
+                f"Failed to write feedback file for decision {decision['decision_id']}: {e}",
+                exc_info=True,
+                extra={
+                    'decision_id': decision['decision_id'],
+                    'file_path': str(pending_file) if 'pending_file' in locals() else 'unknown'
+                }
+            )
+        except (KeyError, AttributeError) as e:
+            logger.error(
+                f"Invalid decision structure for feedback recording: {e}",
+                exc_info=True,
+                extra={'decision_keys': list(decision.keys()) if isinstance(decision, dict) else 'not_a_dict'}
+            )
         except Exception as e:
-            logger.error(f"Failed to record anomaly for reporting: {e}")
+            logger.error(
+                f"Unexpected error recording feedback: {e}",
+                exc_info=True,
+                extra={'decision_id': decision.get('decision_id', 'UNKNOWN')}
+            )
+
+    
+    def _log_decision(self, decision: Dict[str, Any]) -> None:
+        """Log the anomaly decision for audit and analysis."""
+        # Structured logging
+        log_entry = {
+            'timestamp': decision['timestamp'].isoformat(),
+            'decision_id': decision['decision_id'],
+            'anomaly_type': decision['anomaly_type'],
+            'severity': decision['severity_score'],
+            'confidence': decision['detection_confidence'],
+            'mission_phase': decision['mission_phase'],
+            'recommended_action': decision['recommended_action'],
+            'escalation': decision['should_escalate_to_safe_mode'],
+            'recurrence_count': decision['recurrence_info']['count'],
+            'reasoning': decision['reasoning']
+        }
+        
+        logger.info(f"Anomaly decision: {log_entry}")
     
     def _generate_decision_id(self) -> str:
         """Generate a unique decision identifier using UUID for better performance."""
@@ -374,9 +506,10 @@ class PhaseAwareAnomalyHandler:
         if phase is None:
             phase = self.state_machine.get_current_phase()
         
-        return self.policy_engine.get_phase_constraints(phase)
+        constraints = self.policy_engine.get_phase_constraints(phase)
+        return constraints if isinstance(constraints, dict) else {}
     
-    def get_anomaly_history(self, anomaly_type: Optional[str] = None) -> list:
+    def get_anomaly_history(self, anomaly_type: Optional[str] = None) -> List[Tuple[str, datetime]]:
         """
         Get recent anomaly history.
         
@@ -394,7 +527,7 @@ class PhaseAwareAnomalyHandler:
                 if a_type == anomaly_type
             ]
     
-    def clear_anomaly_history(self):
+    def clear_anomaly_history(self) -> None:
         """Clear the anomaly history (e.g., for testing or reset)."""
         self.anomaly_history.clear()
         self._anomaly_counts.clear()
@@ -402,20 +535,53 @@ class PhaseAwareAnomalyHandler:
         logger.info("Anomaly history cleared")
 
     
-    def reload_policies(self, new_config_path: Optional[str] = None):
+    def reload_policies(self, new_config_path: Optional[str] = None) -> None:
         """
         Reload policies from file.
         
         Useful for hot-reloading policy updates without restarting.
         """
         try:
+            config_path = new_config_path or "default"
+            logger.info(f"Reloading policies from: {config_path}")
+            
             self.policy_loader.reload(new_config_path)
-            self.policy_engine = MissionPhasePolicyEngine(
-                self.policy_loader.get_policy()
+            new_policy = self.policy_loader.get_policy()
+            
+            # Validate policy before applying
+            if not new_policy or not isinstance(new_policy, dict):
+                raise ValueError(f"Invalid policy structure loaded from {config_path}")
+            
+            self.policy_engine = MissionPhasePolicyEngine(new_policy)
+            logger.info(
+                f"Policies reloaded successfully from {config_path}",
+                extra={'policy_phases': list(new_policy.keys()) if isinstance(new_policy, dict) else []}
             )
-            logger.info("Policies reloaded successfully")
+            
+        except FileNotFoundError as e:
+            logger.error(
+                f"Policy config file not found: {e}",
+                extra={'config_path': new_config_path or 'default'}
+            )
+        except (ValueError, KeyError) as e:
+            logger.error(
+                f"Invalid policy configuration: {e}. Keeping existing policies.",
+                exc_info=True,
+                extra={'config_path': new_config_path or 'default'}
+            )
+        except (IOError, OSError) as e:
+            logger.error(
+                f"Failed to read policy file: {e}",
+                exc_info=True,
+                extra={'config_path': new_config_path or 'default'}
+            )
         except Exception as e:
-            logger.error(f"Failed to reload policies: {e}", exc_info=True)
+            logger.critical(
+                f"Unexpected error reloading policies: {e}. Policy engine may be in inconsistent state!",
+                exc_info=True,
+                extra={'config_path': new_config_path or 'default'}
+            )
+
 
 
 class DecisionTracer:
@@ -426,25 +592,25 @@ class DecisionTracer:
     Uses deque for O(1) append and automatic size management.
     """
     
-    def __init__(self, max_decisions: int = 1000):
+    def __init__(self, max_decisions: int = 1000) -> None:
         """Initialize the decision tracer."""
         self.max_decisions = max_decisions
-        self.decisions = deque(maxlen=max_decisions)
+        self.decisions: List[Dict[str, Any]] = []
     
-    def add_decision(self, decision: Dict[str, Any]):
+    def add_decision(self, decision: Dict[str, Any]) -> None:
         """Record a decision."""
         self.decisions.append(decision)
 
     
-    def get_decisions_for_phase(self, phase: str) -> list:
+    def get_decisions_for_phase(self, phase: str) -> List[Dict[str, Any]]:
         """Get all recorded decisions for a specific phase."""
         return [d for d in self.decisions if d.get('mission_phase') == phase]
     
-    def get_decisions_for_anomaly_type(self, anomaly_type: str) -> list:
+    def get_decisions_for_anomaly_type(self, anomaly_type: str) -> List[Dict[str, Any]]:
         """Get all recorded decisions for a specific anomaly type."""
         return [d for d in self.decisions if d.get('anomaly_type') == anomaly_type]
     
-    def get_escalations(self) -> list:
+    def get_escalations(self) -> List[Dict[str, Any]]:
         """Get all decisions that resulted in escalation."""
         return [d for d in self.decisions if d.get('should_escalate_to_safe_mode')]
 
@@ -456,13 +622,13 @@ class DecisionTracer:
         
         escalations = self.get_escalations()
         
-        phases = {}
+        phases: Dict[str, int] = {}
         for d in self.decisions:
             phase = d.get('mission_phase')
             if phase:
                 phases[phase] = phases.get(phase, 0) + 1
         
-        anomaly_types = {}
+        anomaly_types: Dict[str, int] = {}
         for d in self.decisions:
             a_type = d.get('anomaly_type')
             if a_type:
@@ -498,7 +664,7 @@ class DecisionTracer:
             else:
                 severity = "LOW"
             
-            # Prepare telemetry data (use metadata or create minimal data)
+            # Prepare telemetry data
             telemetry_data = anomaly_metadata.copy() if anomaly_metadata else {}
             telemetry_data.update({
                 'severity_score': severity_score,
@@ -515,5 +681,23 @@ class DecisionTracer:
                 explanation=decision.get('explanation')
             )
             
+        except (AttributeError, KeyError) as e:
+            logger.error(
+                f"Invalid decision or metadata structure for reporting: {e}",
+                exc_info=True,
+                extra={
+                    'decision_id': decision.get('decision_id', 'UNKNOWN'),
+                    'decision_keys': list(decision.keys()) if isinstance(decision, dict) else 'not_a_dict'
+                }
+            )
+        except ImportError as e:
+            logger.error(
+                f"Report generator not available: {e}. Anomaly will not be recorded in reports.",
+                extra={'decision_id': decision.get('decision_id', 'UNKNOWN')}
+            )
         except Exception as e:
-            logger.warning(f"Failed to record anomaly for reporting: {e}")
+            logger.error(
+                f"Unexpected error recording anomaly for reporting: {e}",
+                exc_info=True,
+                extra={'decision_id': decision.get('decision_id', 'UNKNOWN')}
+            )

@@ -8,7 +8,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Dict, NoReturn
 
 # Enable UTF-8 output on Windows
 if sys.platform == "win32":
@@ -342,6 +342,18 @@ def run_simulation() -> None:
     except Exception as e:
         logger.error("Unexpected error running simulation", error_type=type(e).__name__, error=str(e))
         print(f"❌ Unexpected error: {e}")
+        sys.exit(1)
+
+def run_classifier() -> None:
+    """Run fault classifier tests."""
+    try:
+        from classifier.fault_classifier import run_tests
+        run_tests()
+    except ImportError:
+        print("❌ Fault classifier not available. Missing dependencies.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Classifier failed: {e}")
         sys.exit(1)
 
 

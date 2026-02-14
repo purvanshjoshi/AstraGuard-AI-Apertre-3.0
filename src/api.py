@@ -6,25 +6,9 @@ It securely imports the main `app` instance from `api.service`, handling potenti
 import errors gracefully with detailed logging for debugging deployment issues.
 """
 import logging
-import sys
-from typing import List, Tuple
+from typing import List
 
 logger: logging.Logger = logging.getLogger(__name__)
-
-# Track import errors for better debugging
-_import_errors: List[Tuple[str, str]] = []
-
-
-def _log_import_error(error: Exception, error_type: str) -> None:
-    """Log import error with comprehensive context."""
-    logger.critical(
-        f"Failed to import 'api.service.app': {error_type} - {error} | "
-        f"Python version: {sys.version} | "
-        f"sys.path: {sys.path}",
-        exc_info=True,
-    )
-
-
 try:
     from api.service import app
 except ModuleNotFoundError as e:
@@ -62,10 +46,4 @@ except Exception as e:
     _import_errors.append((type(e).__name__, str(e)))
     raise
 
-
-def get_import_errors() -> List[Tuple[str, str]]:
-    """Return list of import errors that occurred during module load."""
-    return _import_errors.copy()
-
-
-__all__ = ["app", "get_import_errors"]
+__all__: List[str] = ["app"]
