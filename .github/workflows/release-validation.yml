@@ -16,7 +16,8 @@ on:
     - cron: '0 0 * * *'  # Daily at midnight UTC
 
 concurrency:
-  group: release-validation
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -71,6 +72,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r src/config/requirements-ci.txt
           pip install pytest pytest-asyncio pytest-cov
+      
+      - name: 'Create Environment File'
+        run: |
+          cp infra/docker/.env.example infra/docker/.env
       
       - name: 'Boot Docker Compose Stack'
         run: |

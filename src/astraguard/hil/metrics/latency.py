@@ -210,6 +210,10 @@ class LatencyCollector:
 
         Args:
             filename: Path to output CSV file
+            
+        Raises:
+            ValueError: If filename is invalid or no measurements to export
+            OSError: If file cannot be created or written (permissions, disk space, etc.)
         """
         if not isinstance(filename, str) or not filename.strip():
             raise ValueError(f"Invalid filename: must be non-empty string, got {filename}")
@@ -218,27 +222,66 @@ class LatencyCollector:
             raise ValueError("No measurements to export")
 
         filepath = Path(filename)
-        filepath.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.error(
+                f"Failed to create directory for CSV export: {e}",
+                extra={
+                    "directory": str(filepath.parent),
+                    "error_type": "OSError",
+                    "operation": "mkdir"
+                },
+                exc_info=True
+            )
+            raise
 
-        with open(filepath, "w", newline="", encoding='utf-8') as f:
-            fieldnames = [
-                "timestamp",
-                "metric_type",
-                "satellite_id",
-                "duration_ms",
-                "scenario_time_s",
-            ]
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
+        try:
+            with open(filepath, "w", newline="", encoding='utf-8') as f:
+                fieldnames = [
+                    "timestamp",
+                    "metric_type",
+                    "satellite_id",
+                    "duration_ms",
+                    "scenario_time_s",
+                ]
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
 
-            # Write in batches for better performance
-            batch_size = 1000
-            for i in range(0, len(self.measurements), batch_size):
-                batch = self.measurements[i:i + batch_size]
-                for m in batch:
-                    writer.writerow(asdict(m))
+                # Write in batches for better performance
+                batch_size = 1000
+                for i in range(0, len(self.measurements), batch_size):
+                    batch = self.measurements[i:i + batch_size]
+                    for m in batch:
+                        writer.writerow(asdict(m))
 
-        logger.info(f"Exported {len(self.measurements)} measurements to {filepath}")
+            logger.info(f"Exported {len(self.measurements)} measurements to {filepath}")
+            
+        except OSError as e:
+            logger.error(
+                f"Failed to write CSV file: {e}",
+                extra={
+                    "filepath": str(filepath),
+                    "measurement_count": len(self.measurements),
+                    "error_type": "OSError",
+                    "operation": "file_write"
+                },
+                exc_info=True
+            )
+            raise
+        except Exception as e:
+            # Catch unexpected errors during CSV serialization
+            logger.error(
+                f"Unexpected error during CSV export: {e}",
+                extra={
+                    "filepath": str(filepath),
+                    "error_type": type(e).__name__,
+                    "operation": "csv_export"
+                },
+                exc_info=True
+            )
+            raise
 
     def get_summary(self) -> Dict[str, Any]:
         """

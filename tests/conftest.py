@@ -266,11 +266,15 @@ def setup_test_environment():
 @pytest.fixture(autouse=True)
 def reset_singletons():
     """Reset singleton instances between tests."""
-    from core.component_health import SystemHealthMonitor
-    # Save original instances
-    yield
-    # Reset after each test
-    SystemHealthMonitor._instance = None
+    try:
+        from core.component_health import SystemHealthMonitor
+        # Save original instances
+        yield
+        # Reset after each test
+        SystemHealthMonitor._instance = None
+    except (ImportError, ModuleNotFoundError):
+        # Skip if dependencies like redis are not installed
+        yield
 
 
 # ============================================================================

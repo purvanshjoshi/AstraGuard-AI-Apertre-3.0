@@ -70,10 +70,20 @@ async def get_api_key(
 
         return key
     except ValueError as e:
+        # Log authentication failures with debugging context
+        logger.warning(
+            f"Authentication failed: {e}",
+            extra={
+                "api_key_prefix": api_key[:8] + "..." if len(api_key) > 8 else api_key,
+                "client_ip": request.client.host if request.client else "unknown",
+                "endpoint": request.url.path
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e)
         )
+
 
 
 def require_permission(permission: str) -> Callable[[APIKey], Awaitable[APIKey]]:
@@ -110,27 +120,57 @@ def initialize_from_env() -> None:
         try:
             # Expected format: name1:key1,name2:key2
             key_manager = get_api_key_manager()
+            initialized_count = 0
+            
             for key_pair in api_keys_env.split(","):
-                if ":" in key_pair:
-                    name_part, key_value_part = key_pair.split(":", 1)
-                    name = name_part.strip()
-                    key_value = key_value_part.strip()
+                key_pair = key_pair.strip()
+                
+                # Skip empty entries
+                if not key_pair:
+                    continue
+                    
+                # Validate format
+                if ":" not in key_pair:
+                    logger.warning(f"Skipping malformed API key pair (missing colon): '{key_pair[:20]}...'")
+                    continue
+                    
+                name_part, key_value_part = key_pair.split(":", 1)
+                name = name_part.strip()
+                key_value = key_value_part.strip()
+                
+                # Skip entries with empty name or value
+                if not name or not key_value:
+                    logger.warning("Skipping API key pair with empty name or value")
+                    continue
 
-                    # Check if key already exists
-                    if key_value not in key_manager.api_keys:
-                        key = APIKey(
-                            key=key_value,
-                            name=name,
-                            created_at=datetime.now(),
-                            permissions={"read", "write"},
-                            metadata={"source": "environment"}
-                        )
-                        key_manager.api_keys[key_value] = key
-                        key_hash = hashlib.sha256(key_value.encode()).hexdigest()
-                        key_manager.key_hashes[key_hash] = key_value
+                # Check if key already exists
+                if key_value not in key_manager.api_keys:
+                    key = APIKey(
+                        key=key_value,
+                        name=name,
+                        created_at=datetime.now(),
+                        permissions={"read", "write"},
+                        metadata={"source": "environment"}
+                    )
+                    key_manager.api_keys[key_value] = key
+                    key_hash = hashlib.sha256(key_value.encode()).hexdigest()
+                    key_manager.key_hashes[key_hash] = key_value
+                    initialized_count += 1
 
+            # MOVED OUTSIDE LOOP - was incorrectly inside the loop before
             key_manager._save_keys()  # type: ignore[attr-defined]
-            logger.info("Initialized API keys from environment")
+            logger.info(
+                f"Initialized {initialized_count} API keys from environment",
+                extra={"initialized_count": initialized_count}
+            )
 
+        except ValueError as e:
+            # Invalid format in environment variable
+            logger.error(f"Invalid API key format in environment variable: {e}", exc_info=True)
+        except OSError as e:
+            # File system errors when saving keys
+            logger.error(f"Failed to save API keys to storage: {e}", exc_info=True)
         except Exception as e:
-            logger.error(f"Failed to initialize API keys from environment: {e}")
+            # Intentionally broad: catch unexpected errors to prevent startup failure
+            # This allows the application to start even if API key initialization fails
+            logger.error(f"Unexpected error initializing API keys from environment: {e}", exc_info=True)

@@ -98,14 +98,14 @@ class SwarmSimulatorOrchestrator:
                 ["docker-compose", "-f", self.compose_file, "up", "-d"],
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=300
             )
             if result.returncode != 0:
                 logger.error(f"docker-compose failed: {result.stderr}")
                 return False
             
             # Wait for all agents healthy
-            await self._wait_for_agents_healthy(timeout=120)
+            await self._wait_for_agents_healthy(timeout=300)
             logger.info("✓ All agents healthy")
             return True
         except Exception as e:
@@ -127,7 +127,7 @@ class SwarmSimulatorOrchestrator:
             logger.error(f"Failed to stop constellation: {e}")
             return False
     
-    async def _wait_for_agents_healthy(self, timeout: int = 120):
+    async def _wait_for_agents_healthy(self, timeout: int = 300):
         """Wait for all agents to pass health checks."""
         start = datetime.now()
         logger.info(f"Waiting up to {timeout}s for agents to become healthy...")
