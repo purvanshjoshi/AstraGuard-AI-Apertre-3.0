@@ -17,7 +17,9 @@ services:
     build:
       context: ../../
       dockerfile: infra/docker/Dockerfile
-    container_name: astra-agent-1
+    build:
+      context: ../../
+      dockerfile: infra/docker/Dockerfile
     hostname: astra-agent-1
     environment:
       # Core configuration
@@ -83,7 +85,9 @@ services:
     build:
       context: ../../
       dockerfile: infra/docker/Dockerfile
-    container_name: astra-agent-2
+    build:
+      context: ../../
+      dockerfile: infra/docker/Dockerfile
     hostname: astra-agent-2
     environment:
       - SWARM_MODE_ENABLED=true
