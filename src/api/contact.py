@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Any, Union
 from fastapi import APIRouter, HTTPException, Request, Depends, Query
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, validator
 from fastapi.responses import JSONResponse
 import aiosqlite
 import aiofiles
@@ -246,7 +246,7 @@ async def save_submission(
     return submission_id
 
 
-def log_notification(submission: ContactSubmission, submission_id: Optional[int]) -> None:
+async def log_notification(submission: ContactSubmission, submission_id: Optional[int]) -> None:
 
     """Log notification to file (fallback when email is not configured)"""
     DATA_DIR.mkdir(exist_ok=True)
@@ -264,7 +264,7 @@ def log_notification(submission: ContactSubmission, submission_id: Optional[int]
         await f.write(json.dumps(log_entry) + "\n")
 
 
-def send_email_notification(submission: ContactSubmission, submission_id: Optional[int]) -> None:
+async def send_email_notification(submission: ContactSubmission, submission_id: Optional[int]) -> None:
 
     """Send email notification (placeholder for SendGrid integration)"""
     # TODO: Implement SendGrid integration when SENDGRID_API_KEY is set
