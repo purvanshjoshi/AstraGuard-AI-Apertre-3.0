@@ -227,31 +227,54 @@ class TestRateLimiting:
             self.requests: dict[str, list[datetime]] = {}
             self._lock = asyncio.Lock()
 
-        async def is_allowed(self, key: str, limit: int, window: int) -> bool:
+        async def is_allowed(self, key: str, limit: int, window: int) -> tuple[bool, dict]:
+            """Updated to return tuple with metadata like the real implementation"""
             async with self._lock:
                 now = datetime.now()
                 cutoff = now - timedelta(seconds=window)
                 self.requests.setdefault(key, [])
                 self.requests[key] = [t for t in self.requests[key] if t > cutoff]
-                if len(self.requests[key]) >= limit:
-                    return False
-                self.requests[key].append(now)
+                
+                current_count = len(self.requests[key])
+                is_allowed = current_count < limit
+                
+                # Calculate metadata
+                reset_at = None
+                if self.requests[key]:
+                    oldest = min(self.requests[key])
+                    reset_at = (oldest + timedelta(seconds=window)).isoformat()
+                
+                metadata = {
+                    "limit": limit,
+                    "remaining": max(0, limit - current_count - (1 if is_allowed else 0)),
+                    "reset_at": reset_at,
+                    "window_seconds": window
+                }
+                
+                if is_allowed:
+                    self.requests[key].append(now)
+                    
                 if not self.requests[key]:          # defensive eviction
                     del self.requests[key]
-                return True
+                    
+                return is_allowed, metadata
 
     @pytest.mark.asyncio
     async def test_allows_within_limit(self):
         limiter = self._Limiter()
         for _ in range(5):
-            assert await limiter.is_allowed("ip", 5, 3600) is True
+            allowed, metadata = await limiter.is_allowed("ip", 5, 3600)
+            assert allowed is True
+            assert "remaining" in metadata
 
     @pytest.mark.asyncio
     async def test_blocks_over_limit(self):
         limiter = self._Limiter()
         for _ in range(5):
             await limiter.is_allowed("ip", 5, 3600)
-        assert await limiter.is_allowed("ip", 5, 3600) is False
+        allowed, metadata = await limiter.is_allowed("ip", 5, 3600)
+        assert allowed is False
+        assert metadata["remaining"] == 0
 
     @pytest.mark.asyncio
     async def test_cleans_old_entries(self):
@@ -259,7 +282,8 @@ class TestRateLimiting:
         old = datetime.now() - timedelta(seconds=7200)
         limiter.requests["ip"] = [old] * 5
         # Window has passed, should allow
-        assert await limiter.is_allowed("ip", 5, 3600) is True
+        allowed, _ = await limiter.is_allowed("ip", 5, 3600)
+        assert allowed is True
 
     @pytest.mark.asyncio
     async def test_different_ips_independent(self):
@@ -267,18 +291,22 @@ class TestRateLimiting:
         for _ in range(5):
             await limiter.is_allowed("ip1", 5, 3600)
         # ip1 is blocked; ip2 is fresh
-        assert await limiter.is_allowed("ip1", 5, 3600) is False
-        assert await limiter.is_allowed("ip2", 5, 3600) is True
+        allowed1, _ = await limiter.is_allowed("ip1", 5, 3600)
+        allowed2, _ = await limiter.is_allowed("ip2", 5, 3600)
+        assert allowed1 is False
+        assert allowed2 is True
 
     @pytest.mark.asyncio
     async def test_check_rate_limit_wrapper(self):
         limiter = self._Limiter()
 
-        async def check(ip: str) -> bool:
+        async def check(ip: str) -> tuple[bool, dict]:
             return await limiter.is_allowed(f"contact:{ip}", 5, 3600)
 
-        assert await check("1.2.3.4") is True
-        assert await check("5.6.7.8") is True
+        allowed1, _ = await check("1.2.3.4")
+        allowed2, _ = await check("5.6.7.8")
+        assert allowed1 is True
+        assert allowed2 is True
 
     @pytest.mark.asyncio
     async def test_concurrent_requests_do_not_bypass_limit(self):
@@ -292,8 +320,9 @@ class TestRateLimiting:
         results = await asyncio.gather(
             *[limiter.is_allowed("shared_ip", 5, 3600) for _ in range(10)]
         )
-        assert results.count(True) == 5
-        assert results.count(False) == 5
+        allowed_results = [r[0] for r in results]
+        assert allowed_results.count(True) == 5
+        assert allowed_results.count(False) == 5
 
 
 class TestIPExtraction:
@@ -610,15 +639,26 @@ class TestContactEndpoints:
             async def is_allowed(self, key, limit, window):
                 async with self._lock:
                     self.requests.setdefault(key, [])
-                    if len(self.requests[key]) >= limit:
-                        return False
-                    self.requests[key].append(datetime.now())
-                    return True
+                    current_count = len(self.requests[key])
+                    is_allowed = current_count < limit
+                    
+                    metadata = {
+                        "limit": limit,
+                        "remaining": max(0, limit - current_count - (1 if is_allowed else 0)),
+                        "reset_at": None,
+                        "window_seconds": window
+                    }
+                    
+                    if is_allowed:
+                        self.requests[key].append(datetime.now())
+                    
+                    return is_allowed, metadata
 
         lim = _Lim()
 
         async def check(ip):
-            if not await lim.is_allowed(f"c:{ip}", 5, 3600):
+            allowed, metadata = await lim.is_allowed(f"c:{ip}", 5, 3600)
+            if not allowed:
                 raise HTTPException(status_code=429, detail="Too many submissions")
 
         for _ in range(5):

@@ -39,6 +39,7 @@ if project_root_str not in sys.path:
         extra={"project_root": project_root_str}
     )
 
+
 # Import FastAPI application
 try:
     from api.service import app
