@@ -62,6 +62,14 @@ AstraGuard now operates with **mission-phase awareness**. Before contributing, u
 4.  **Implement**: Write clean, tested code.
 5.  **Submit PR**: detailed description of your changes.
 
+## 👀 Code Review Process
+
+All submissions go through peer review to maintain quality and consistency. Familiarize yourself with our review standards:
+
+- **[PR Review Guidelines](PR_REVIEW_GUIDELINES.md)** — Comprehensive guide on what reviewers check, how to handle feedback, and when PRs are ready to merge
+- Expect constructive feedback focused on code quality, correctness, and testing
+- Be responsive to reviewer questions and update your PR promptly
+
 ## 🧪 Testing Guidelines
 - Run existing tests before submitting.
 - Add new tests for any new logic.
