@@ -50,7 +50,7 @@
 
 ### _Want to see your avatar here? [Make your first contribution today!](docs/CONTRIBUTING.md)_
 
-**📋 [View All Contributors](CONTRIBUTORS.md)** | **🎖️ [Recognition Program](.github/CONTRIBUTOR_RECOGNITION.md)** | **🏅 [Badge System](docs/CONTRIBUTOR_BADGES.md)**
+**📋 [View All Contributors](CONTRIBUTORS.md)** | **📊 [Metrics Dashboard](docs/contribution-metrics-dashboard.html)** | **🎖️ [Recognition Program](.github/CONTRIBUTOR_RECOGNITION.md)** | **🏅 [Badge System](docs/CONTRIBUTOR_BADGES.md)**
 
 ---
 

@@ -77,6 +77,7 @@ Happy Coding! 🚀
 We value and recognize all contributions! Check out our recognition program:
 
 - **[CONTRIBUTORS.md](../CONTRIBUTORS.md)** - See all contributors and their tiers
+- **[Metrics Dashboard](contribution-metrics-dashboard.html)** - View real-time contribution statistics
 - **[Recognition Program](../.github/CONTRIBUTOR_RECOGNITION.md)** - Learn about recognition criteria and benefits
 - **[Badge System](CONTRIBUTOR_BADGES.md)** - Explore available badges and how to earn them
 
