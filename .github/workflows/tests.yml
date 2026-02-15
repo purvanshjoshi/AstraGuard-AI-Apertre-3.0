@@ -98,17 +98,6 @@ jobs:
       matrix:
         python-version: ['3.11']
       fail-fast: false
-    services:
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-    
     env:
       REDIS_URL: redis://localhost:6379
 
@@ -142,6 +131,14 @@ jobs:
         pip freeze
         env
 
+    - name: Create .env file
+      run: cp infra/docker/.env.example infra/docker/.env
+
+    - name: Start Docker Stack
+      run: |
+        docker compose -f infra/docker/docker-compose.ci.yml up -d --build
+        docker compose -f infra/docker/docker-compose.ci.yml ps
+
     - name: Debug Redis URL
       run: echo "REDIS_URL=$REDIS_URL"
     
@@ -160,7 +157,7 @@ jobs:
     - name: Run pytest with coverage
       run: |
         pytest tests/ \
-          -vv --maxfail=1 --durations=10 --log-cli-level=DEBUG \
+          -vv --maxfail=1 --durations=10 --log-cli-level=INFO \
           --cov=src/anomaly \
           --cov=src/classifier \
           --cov=src/memory_engine \
@@ -174,6 +171,42 @@ jobs:
     - name: Check coverage threshold
       run: coverage report --fail-under=70
     
+    - name: Capture Docker Logs
+      if: failure()
+      run: |
+        docker compose -f infra/docker/docker-compose.ci.yml logs --no-color > docker-logs.txt
+
+    - name: Capture Container Status
+      if: failure()
+      run: docker ps -a > docker-status.txt
+
+    - name: Capture Health Status
+      if: failure()
+      run: |
+        if [ -n "$(docker ps -q)" ]; then
+          docker inspect $(docker ps -q) --format='{{.Name}} - {{.State.Health.Status}}' > health-status.txt
+        else
+          echo "No running containers" > health-status.txt
+        fi
+
+    - name: Capture Environment Info
+      if: failure()
+      run: |
+        env > environment.txt
+        docker version >> environment.txt
+        docker compose version >> environment.txt
+
+    - name: Upload debug artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ci-debug-logs
+        path: |
+          docker-logs.txt
+          docker-status.txt
+          health-status.txt
+          environment.txt
+
     - name: Upload coverage reports
       uses: actions/upload-artifact@v4
       if: always()

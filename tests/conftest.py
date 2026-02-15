@@ -253,10 +253,10 @@ def sample_memory_entries():
 # ============================================================================
 
 @pytest.fixture(autouse=True)
-def enable_verbose_logging():
+def configure_logging():
     import logging
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     yield
