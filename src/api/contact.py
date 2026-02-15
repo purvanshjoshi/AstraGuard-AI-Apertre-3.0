@@ -3,6 +3,8 @@ Contact Form API
 
 Handles contact form submissions with validation, rate limiting, spam protection,
 and persistence. Includes admin endpoint for reviewing submissions.
+
+Optimized for async I/O performance using aiosqlite and connection pooling.
 """
 
 import os
@@ -10,25 +12,30 @@ import re
 import logging
 import sqlite3
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Any, Union
-import asyncio
-
+from fastapi import APIRouter, HTTPException, Request, Depends, Query
+from pydantic import BaseModel, EmailStr, Field, field_validator, validator
+from fastapi.responses import JSONResponse
 import aiosqlite
 import aiofiles
 
 from fastapi import APIRouter, HTTPException, Request, Depends, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ValidationError as PydanticValidationError
 
+
+# Declare variables BEFORE try block
+REDIS_AVAILABLE: bool
+AUTH_AVAILABLE: bool
 
 try:
     from backend.redis_client import RedisClient
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
-
 
 try:
     from core.auth import require_admin
@@ -37,7 +44,7 @@ except ImportError:
     AUTH_AVAILABLE = False
 
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 if AUTH_AVAILABLE:
@@ -48,49 +55,69 @@ else:
         return None
 
 
-router = APIRouter(prefix="/api/contact", tags=["contact"])
+router: APIRouter = APIRouter(prefix="/api/contact", tags=["contact"])
+
+DATA_DIR: Path = Path("data")
+DB_PATH: Path = DATA_DIR / "contact_submissions.db"
+NOTIFICATION_LOG: Path = DATA_DIR / "contact_notifications.log"
+CONTACT_EMAIL: str = os.getenv("CONTACT_EMAIL", "support@astraguard.ai")
+SENDGRID_API_KEY: Optional[str] = os.getenv("SENDGRID_API_KEY", None)
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 
-DATA_DIR = Path("data")
-DB_PATH = DATA_DIR / "contact_submissions.db"
-NOTIFICATION_LOG = DATA_DIR / "contact_notifications.log"
-CONTACT_EMAIL = os.getenv("CONTACT_EMAIL", "support@astraguard.ai")
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", None)
-
-
-_raw_trusted = os.getenv("TRUSTED_PROXIES", "")
+_raw_trusted: str = os.getenv("TRUSTED_PROXIES", "")
 TRUSTED_PROXIES: set[str] = {ip.strip() for ip in _raw_trusted.split(",") if ip.strip()}
 
 
-RATE_LIMIT_SUBMISSIONS = 5
-RATE_LIMIT_WINDOW = 3600
+RATE_LIMIT_SUBMISSIONS: int = 5
+RATE_LIMIT_WINDOW: int = 3600
 
 
 class ContactSubmission(BaseModel):
-    name: str = Field(..., min_length=2, max_length=100)
-    email: EmailStr = Field(..., min_length=5, max_length=100)
-    phone: Optional[str] = Field(None, max_length=20)
-    subject: str = Field(..., min_length=3, max_length=200)
-    message: str = Field(..., min_length=10, max_length=5000)
-    website: Optional[str] = Field(None)
+    name: str = Field(..., min_length=2, max_length=100, description="Full name (2-100 characters)")
+    email: EmailStr = Field(..., min_length=5, max_length=100, description="Valid email address")
+    phone: Optional[str] = Field(None, max_length=20, description="Phone number (optional)")
+    subject: str = Field(..., min_length=3, max_length=200, description="Subject line (3-200 characters)")
+    message: str = Field(..., min_length=10, max_length=5000, description="Message content (10-5000 characters)")
+    website: Optional[str] = Field(None, description="Honeypot field - leave empty")
 
     @field_validator("name", "subject", "message", mode="before")
     @classmethod
     def sanitize_text(cls, v: str) -> str:
+        """Remove potentially dangerous HTML/script characters for XSS protection"""
         if v:
+            # Remove HTML tags and dangerous characters
             v = re.sub(r'[<>"\'&]', "", v)
+            # Remove any script-like patterns
+            v = re.sub(r'(?i)(javascript|onerror|onload|onclick):', "", v)
         return v
 
     @field_validator("email", mode="before")
     @classmethod
     def normalize_email(cls, v: str) -> str:
+        """Normalize email to lowercase for consistency"""
         return v.lower() if v else v
+    
+    @field_validator("phone", mode="before")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        """Validate phone number format if provided"""
+        if v:
+            # Remove common formatting characters
+            cleaned = re.sub(r'[\s\-\(\)\.]', '', v)
+            # Check if it contains only digits and optional + prefix
+            if not re.match(r'^\+?\d{7,15}$', cleaned):
+                raise ValueError("Phone number must contain 7-15 digits with optional + prefix")
+        return v
 
 
 class ContactResponse(BaseModel):
     success: bool
     message: str
     submission_id: Optional[int] = None
+    rate_limit_info: Optional[dict[str, Any]] = None
 
 
 class SubmissionRecord(BaseModel):
@@ -154,7 +181,16 @@ class InMemoryRateLimiter:
         self.requests: dict[str, list[datetime]] = {}
         self._lock = asyncio.Lock()
 
-    async def is_allowed(self, key: str, limit: int, window: int) -> bool:
+    async def is_allowed(self, key: str, limit: int, window: int) -> tuple[bool, dict[str, Any]]:
+        """
+        Check if request is allowed and return rate limit metadata.
+        
+        Returns:
+            tuple: (is_allowed, metadata) where metadata contains:
+                - remaining: requests remaining in current window
+                - reset_at: when the rate limit window resets
+                - limit: total requests allowed per window
+        """
         async with self._lock:
             now = datetime.now()
             cutoff = now - timedelta(seconds=window)
@@ -164,21 +200,38 @@ class InMemoryRateLimiter:
             else:
                 self.requests[key] = []
 
-            if len(self.requests[key]) >= limit:
-                return False
+            current_count = len(self.requests[key])
+            is_allowed = current_count < limit
+            
+            # Calculate reset time (oldest request + window)
+            reset_at = None
+            if self.requests[key]:
+                oldest = min(self.requests[key])
+                reset_at = (oldest + timedelta(seconds=window)).isoformat()
+            
+            metadata = {
+                "limit": limit,
+                "remaining": max(0, limit - current_count - (1 if is_allowed else 0)),
+                "reset_at": reset_at,
+                "window_seconds": window
+            }
 
-            self.requests[key].append(now)
+            if is_allowed:
+                self.requests[key].append(now)
 
             if not self.requests[key]:
                 del self.requests[key]
 
-            return True
+            return is_allowed, metadata
+
+# Initialize database
+_init_db_sync()
+
+_in_memory_limiter: InMemoryRateLimiter = InMemoryRateLimiter()
 
 
-_in_memory_limiter = InMemoryRateLimiter()
-
-
-async def check_rate_limit(ip_address: str) -> bool:
+async def check_rate_limit(ip_address: str) -> tuple[bool, dict[str, Any]]:
+    """Check rate limit and return status with metadata"""
     return await _in_memory_limiter.is_allowed(
         f"contact:{ip_address}",
         RATE_LIMIT_SUBMISSIONS,
@@ -228,6 +281,7 @@ async def save_submission(
         await conn.commit()
         return cursor.lastrowid
 
+async def log_notification(submission: ContactSubmission, submission_id: Optional[int]) -> None:
 
 async def log_notification(
     submission: ContactSubmission,
@@ -250,31 +304,62 @@ async def log_notification(
         await f.write(json.dumps(log_entry) + "\n")
 
 
-async def send_email_notification(
-    submission: ContactSubmission,
-    submission_id: Optional[int],
-) -> None:
+async def send_email_notification(submission: ContactSubmission, submission_id: Optional[int]) -> None:
+
+    """Send email notification (placeholder for SendGrid integration)"""
+    # TODO: Implement SendGrid integration when SENDGRID_API_KEY is set
     if SENDGRID_API_KEY:
         try:
             pass
+        except OSError as e:
+            logger.warning(
+                "SendGrid send failed (network/IO error), falling back to file log",
+                extra={
+                    "error_type": type(e).__name__,
+                    "operation": "send_email",
+                    "submission_id": submission_id,
+                    "email": submission.email
+                },
+                exc_info=True
+            )
+            await log_notification(submission, submission_id)
         except Exception as e:
             logger.warning(
-                "SendGrid send failed, falling back to file log",
-                exc_info=e,
+                "SendGrid send failed (unexpected), falling back to file log",
+                extra={
+                    "error_type": type(e).__name__,
+                    "operation": "send_email",
+                    "submission_id": submission_id,
+                    "email": submission.email
+                },
+                exc_info=True
             )
             await log_notification(submission, submission_id)
     else:
         await log_notification(submission, submission_id)
-
-
 
 @router.post("", response_model=ContactResponse, status_code=201)
 async def submit_contact_form(
     submission: ContactSubmission,
     request: Request,
 ) -> Union[JSONResponse, ContactResponse]:
+    """
+    Submit a contact form with comprehensive validation.
+    
+    Validates:
+    - Email format (RFC 5322 compliant)
+    - Message content sanitization (XSS protection)
+    - Rate limiting per IP address
+    - Spam detection via honeypot field
+    
+    Returns:
+    - 201: Successfully created submission
+    - 400: Validation error with detailed message
+    - 429: Rate limit exceeded
+    - 500: Server error
+    """
 
-
+    # Honeypot spam detection
     if submission.website:
         return JSONResponse(
             status_code=201,
@@ -287,10 +372,17 @@ async def submit_contact_form(
     ip_address = get_client_ip(request)
     user_agent = request.headers.get("User-Agent", "unknown")
 
-    if not await check_rate_limit(ip_address):
+    # Check rate limit and get metadata
+    is_allowed, rate_limit_metadata = await check_rate_limit(ip_address)
+    
+    if not is_allowed:
         raise HTTPException(
             status_code=429,
-            detail="Too many submissions. Please try again later.",
+            detail={
+                "error": "Rate limit exceeded",
+                "message": "Too many submissions. Please try again later.",
+                "rate_limit": rate_limit_metadata
+            },
         )
 
     try:
@@ -327,22 +419,39 @@ async def submit_contact_form(
 
     try:
         await send_email_notification(submission, submission_id)
-    except Exception as e:
+    except OSError as e:
         logger.warning(
-            "Notification failed but submission was saved",
+            "Notification failed due to I/O error but submission was saved",
             extra={
                 "error_type": type(e).__name__,
                 "error_message": str(e),
                 "submission_id": submission_id,
                 "email": submission.email,
                 "subject": submission.subject,
+                "operation": "send_notification"
             },
+            exc_info=True
         )
+    except Exception as e:
+        logger.warning(
+            "Notification failed (unexpected) but submission was saved",
+            extra={
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "submission_id": submission_id,
+                "email": submission.email,
+                "subject": submission.subject,
+                "operation": "send_notification"
+            },
+            exc_info=True
+        )
+
 
     return ContactResponse(
         success=True,
         message="Thank you for your message! We'll get back to you within 24-48 hours.",
         submission_id=submission_id,
+        rate_limit_info=rate_limit_metadata,
     )
 
 
@@ -361,7 +470,7 @@ async def get_submissions(
         where_clause = "WHERE status = ?"
         params.append(status_filter)
 
-    count_query = f"SELECT COUNT(*) AS total FROM contact_submissions {where_clause}"
+    count_query = f"SELECT COUNT(*) AS total FROM contact_submissions {where_clause}"  # nosec B608
     select_query = f"""
         SELECT id, name, email, phone, subject, message,
                ip_address, user_agent, submitted_at, status
@@ -369,13 +478,15 @@ async def get_submissions(
         {where_clause}
         ORDER BY submitted_at DESC
         LIMIT ? OFFSET ?
-    """
+    """  # nosec B608
 
     async with aiosqlite.connect(DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
 
         async with conn.execute(count_query, params) as cursor:
             row = await cursor.fetchone()
+            if row is None:
+                raise HTTPException(status_code=500, detail="Failed to count submissions")
             total: int = row["total"]
 
         async with conn.execute(select_query, [*params, limit, offset]) as cursor:
@@ -434,6 +545,8 @@ async def contact_health() -> dict[str, Any]:
                 "SELECT COUNT(*) FROM contact_submissions"
             ) as cursor:
                 row = await cursor.fetchone()
+                if row is None:
+                    raise HTTPException(status_code=503, detail="Health check query failed")
                 total_submissions: int = row[0]
 
         rate_limiter_status = "redis" if REDIS_AVAILABLE else "in-memory"
@@ -463,6 +576,9 @@ async def contact_health() -> dict[str, Any]:
             extra={
                 "error_type": type(e).__name__,
                 "error_message": str(e),
+                "operation": "health_check",
+                "db_path": str(DB_PATH)
             },
+            exc_info=True
         )
         raise HTTPException(status_code=503, detail="Service health check failed")

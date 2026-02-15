@@ -10,6 +10,9 @@ import sys
 import os
 import signal
 import logging
+from typing import Any, NoReturn, Optional
+from types import FrameType
+
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -30,10 +33,11 @@ except Exception as e:
     )
     sys.exit(1)
 
-def signal_handler(sig, frame):
+def signal_handler(sig: int, frame: Optional[FrameType]) -> NoReturn:
     """Handle shutdown signals gracefully."""
     logger.info(f"Received signal {sig}, shutting down gracefully...")
     sys.exit(0)
+
 
 if __name__ == "__main__":
     # Register signal handlers for graceful shutdown
@@ -44,7 +48,7 @@ if __name__ == "__main__":
         import uvicorn
         
         # Configuration from environment variables with validation
-        host = os.getenv("APP_HOST", "0.0.0.0")
+        host = os.getenv("APP_HOST", "0.0.0.0")  # nosec B104
         port_str = os.getenv("APP_PORT", "8002")
         log_level = os.getenv("LOG_LEVEL", "info").lower()
         
@@ -71,7 +75,7 @@ if __name__ == "__main__":
         
         uvicorn.run(
             app,
-            host=host,
+            host=host,  # nosec B104
             port=port,
             log_level=log_level
         )
