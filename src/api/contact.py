@@ -16,8 +16,9 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Any, Union
-import asyncio
-
+from fastapi import APIRouter, HTTPException, Request, Depends, Query
+from pydantic import BaseModel, EmailStr, Field, field_validator, validator
+from fastapi.responses import JSONResponse
 import aiosqlite
 import aiofiles
 
@@ -280,6 +281,7 @@ async def save_submission(
         await conn.commit()
         return cursor.lastrowid
 
+async def log_notification(submission: ContactSubmission, submission_id: Optional[int]) -> None:
 
 async def log_notification(
     submission: ContactSubmission,
@@ -302,10 +304,10 @@ async def log_notification(
         await f.write(json.dumps(log_entry) + "\n")
 
 
-async def send_email_notification(
-    submission: ContactSubmission,
-    submission_id: Optional[int],
-) -> None:
+async def send_email_notification(submission: ContactSubmission, submission_id: Optional[int]) -> None:
+
+    """Send email notification (placeholder for SendGrid integration)"""
+    # TODO: Implement SendGrid integration when SENDGRID_API_KEY is set
     if SENDGRID_API_KEY:
         try:
             pass
