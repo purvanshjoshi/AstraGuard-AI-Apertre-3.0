@@ -72,6 +72,30 @@ Be respectful, constructive, and inclusive. We are all here to learn and build s
 
 Happy Coding! 🚀
 
+## 🏆 Contributor Recognition
+
+We value and recognize all contributions! Check out our recognition program:
+
+- **[CONTRIBUTORS.md](../CONTRIBUTORS.md)** - See all contributors and their tiers
+- **[Recognition Program](../.github/CONTRIBUTOR_RECOGNITION.md)** - Learn about recognition criteria and benefits
+- **[Badge System](CONTRIBUTOR_BADGES.md)** - Explore available badges and how to earn them
+
+### Recognition Tiers
+- 🌱 **New Contributor** (1 PR): Welcome to the community!
+- ⭐ **Active Contributor** (2-4 PRs): Regular engagement
+- 💎 **Regular Contributor** (5-19 PRs): Consistent quality contributions
+- 🌟 **Core Contributor** (20-49 PRs): Leadership and sustained excellence
+- 👑 **Legend** (50+ PRs): Exceptional long-term commitment
+
+### Get Recognized
+Every merged PR counts toward your tier! Quality contributions can also earn specialty badges like:
+- 🔒 Security Researcher
+- 📚 Documentation Hero
+- 🧪 Testing Champion
+- 🤝 Community Mentor
+
+---
+
 ## Apertre-3.0 2026 Contribution Guidelines
 
 For participants in the **Elite Coders Winter of Code (Apertre-3.0) 2026** event:
