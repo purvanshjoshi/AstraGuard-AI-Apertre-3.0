@@ -222,6 +222,9 @@ def _check_credential_security() -> None:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     global redis_client, telemetry_limiter, api_limiter
+    
+    from core.shutdown import get_shutdown_manager
+    shutdown_manager = get_shutdown_manager()
 
     # Security: Check credentials at startup
     _check_credential_security()
@@ -237,6 +240,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         redis_url: Optional[str] = get_secret("redis_url")
         redis_client = RedisClient(redis_url=redis_url)
         await redis_client.connect()
+        
+        # Register Redis cleanup
+        shutdown_manager.register_cleanup_task(redis_client.close, "redis_client")
 
         # Get rate limit configurations
         rate_configs: Dict[str, Tuple[int, int]] = get_rate_limit_config()
@@ -254,9 +260,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             rate_configs["api"][0],  # rate_per_second
             rate_configs["api"][1]   # burst_capacity
         )
-
-        # Note: RateLimitMiddleware can only be added during app setup, not in lifespan
-        # This is a limitation of Starlette/FastAPI - middleware stack is locked after startup
 
         print("[OK] Rate limiting initialized successfully")
     except Exception as e:
@@ -276,13 +279,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as e:
             print(f"Warning: Observability initialization failed: {e}")
 
+    # Register memory store cleanup if initialized
+    if memory_store:
+        shutdown_manager.register_cleanup_task(memory_store.save, "memory_store")
+
     yield
 
-    # Cleanup
-    if memory_store:
-        await memory_store.save()
-    if redis_client:
-        await redis_client.close()
+    # Cleanup via manager
+    await shutdown_manager.execute_cleanup()
 
 
 # Initialize FastAPI app

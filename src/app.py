@@ -35,16 +35,7 @@ except Exception as e:
     )
     sys.exit(1)
 
-def signal_handler(sig, frame):
-    """Handle shutdown signals gracefully."""
-    logger.info(f"Received signal {sig}, shutting down gracefully...")
-    sys.exit(0)
-
 if __name__ == "__main__":
-    # Register signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
     try:
         import uvicorn
         
