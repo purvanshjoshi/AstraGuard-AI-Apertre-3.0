@@ -59,7 +59,7 @@ warn_unused_ignores = true
 
 [tool.black]
 line-length = 100
-target-version = ["py39", "py310", "py311", "py312"]
+target-version = ["py39", "py310", "py311", "py312", "py313"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -129,4 +129,5 @@ asyncio_default_fixture_loop_scope = "function"
 markers = [
     "benchmark: mark test as a benchmark",
     "chaos: mark test for chaos engineering",
+    "slow: mark test as slow-running (requires extended timeout)",
 ]
