@@ -40,3 +40,17 @@ pytest-mock==3.15.1
 pytest-timeout==2.1.0
 pytest-asyncio==0.24.0
 jsonschema==4.22.0
+docker>=7.0.0
+
+# Authentication & Security
+python-jose[cryptography]==3.4.0
+passlib[bcrypt]==1.7.4
+cryptography==44.0.1
+email-validator>=2.0.0
+
+# Utilities
+requests>=2.31.0
+tenacity>=8.2.3
+psutil>=6.0.0
+fasteners>=0.19.0
+PyYAML>=6.0
