@@ -226,6 +226,15 @@ def _check_credential_security() -> None:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     global redis_client, telemetry_limiter, api_limiter
+    
+    # Initialize database connection pool
+    try:
+        from src.db.database import init_pool
+        await init_pool()
+        print("[OK] Database connection pool initialized")
+    except Exception as e:
+        print(f"[WARNING] Connection pool initialization failed: {e}")
+        print("Falling back to direct database connections")
 
     # Security: Check credentials at startup
     _check_credential_security()
@@ -287,6 +296,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await memory_store.save()
     if redis_client:
         await redis_client.close()
+    
+    # Close database connection pool
+    try:
+        from src.db.database import close_pool
+        await close_pool()
+        print("[OK] Database connection pool closed")
+    except Exception as e:
+        print(f"[WARNING] Connection pool cleanup failed: {e}")
 
 
 # Initialize FastAPI app
