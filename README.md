@@ -48,8 +48,9 @@
   <img src="https://contrib.rocks/image?repo=sr-857/AstraGuard-AI-Apertre-3.0" />
 </a>
 
-## _Want to see your avatar here? [Make your first contribution today!](CONTRIBUTING.md)_
+### _Want to see your avatar here? [Make your first contribution today!](docs/CONTRIBUTING.md)_
 
+**📋 [View All Contributors](CONTRIBUTORS.md)** | **📊 [Metrics Dashboard](docs/contribution-metrics-dashboard.html)** | **🎖️ [Recognition Program](.github/CONTRIBUTOR_RECOGNITION.md)** | **🏅 [Badge System](docs/CONTRIBUTOR_BADGES.md)**
 
 ---
 

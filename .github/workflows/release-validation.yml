@@ -16,7 +16,8 @@ on:
     - cron: '0 0 * * *'  # Daily at midnight UTC
 
 concurrency:
-  group: release-validation
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:

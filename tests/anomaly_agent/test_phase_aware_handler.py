@@ -814,5 +814,206 @@ class TestEdgeCases:
         assert result['anomaly_type'] == long_type
 
 
+class TestDecisionTracerRecordAnomalyForReporting:
+    """Test the _record_anomaly_for_reporting method in DecisionTracer."""
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_critical_severity(self, mock_get_generator, decision_tracer):
+        mock_generator = Mock()
+        mock_get_generator.return_value = mock_generator
+
+        decision = {
+            'anomaly_type': 'critical_fault',
+            'severity_score': 0.9,
+            'detection_confidence': 0.95,
+            'mission_phase': 'NOMINAL_OPS',
+            'recurrence_info': {'count': 1},
+            'explanation': 'Critical system failure'
+        }
+
+        decision_tracer._record_anomaly_for_reporting(decision, {'component': 'power'})
+
+        mock_generator.record_anomaly.assert_called_once()
+        call_kwargs = mock_generator.record_anomaly.call_args[1]
+        assert call_kwargs['anomaly_type'] == 'critical_fault'
+        assert call_kwargs['severity'] == 'CRITICAL'
+        assert call_kwargs['confidence'] == 0.95
+        assert call_kwargs['mission_phase'] == 'NOMINAL_OPS'
+        assert 'severity_score' in call_kwargs['telemetry_data']
+        assert call_kwargs['explanation'] == 'Critical system failure'
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_high_severity(self, mock_get_generator, decision_tracer):
+        mock_generator = Mock()
+        mock_get_generator.return_value = mock_generator
+
+        decision = {
+            'anomaly_type': 'high_fault',
+            'severity_score': 0.7,
+            'detection_confidence': 0.85,
+            'mission_phase': 'LAUNCH',
+            'recurrence_info': {}
+        }
+
+        decision_tracer._record_anomaly_for_reporting(decision, {})
+
+        call_kwargs = mock_generator.record_anomaly.call_args[1]
+        assert call_kwargs['severity'] == 'HIGH'
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_medium_severity(self, mock_get_generator, decision_tracer):
+        mock_generator = Mock()
+        mock_get_generator.return_value = mock_generator
+
+        decision = {
+            'anomaly_type': 'medium_fault',
+            'severity_score': 0.5,
+            'detection_confidence': 0.75,
+            'mission_phase': 'NOMINAL_OPS',
+        }
+
+        decision_tracer._record_anomaly_for_reporting(decision, None)
+
+        call_kwargs = mock_generator.record_anomaly.call_args[1]
+        assert call_kwargs['severity'] == 'MEDIUM'
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_low_severity(self, mock_get_generator, decision_tracer):
+        mock_generator = Mock()
+        mock_get_generator.return_value = mock_generator
+
+        decision = {
+            'anomaly_type': 'low_fault',
+            'severity_score': 0.2,
+            'detection_confidence': 0.65,
+            'mission_phase': 'SAFE_MODE'
+        }
+
+        decision_tracer._record_anomaly_for_reporting(decision, {})
+
+        call_kwargs = mock_generator.record_anomaly.call_args[1]
+        assert call_kwargs['severity'] == 'LOW'
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_severity_boundary_critical(self, mock_get_generator, decision_tracer):
+        mock_generator = Mock()
+        mock_get_generator.return_value = mock_generator
+
+        decision = {
+            'anomaly_type': 'boundary_test',
+            'severity_score': 0.8,
+            'mission_phase': 'NOMINAL_OPS'
+        }
+
+        decision_tracer._record_anomaly_for_reporting(decision, {})
+
+        call_kwargs = mock_generator.record_anomaly.call_args[1]
+        assert call_kwargs['severity'] == 'CRITICAL'
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_severity_boundary_high(self, mock_get_generator, decision_tracer):
+        mock_generator = Mock()
+        mock_get_generator.return_value = mock_generator
+
+        decision = {
+            'anomaly_type': 'boundary_test',
+            'severity_score': 0.6,
+            'mission_phase': 'NOMINAL_OPS'
+        }
+
+        decision_tracer._record_anomaly_for_reporting(decision, {})
+
+        call_kwargs = mock_generator.record_anomaly.call_args[1]
+        assert call_kwargs['severity'] == 'HIGH'
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_severity_boundary_medium(self, mock_get_generator, decision_tracer):
+        mock_generator = Mock()
+        mock_get_generator.return_value = mock_generator
+
+        decision = {
+            'anomaly_type': 'boundary_test',
+            'severity_score': 0.4,
+            'mission_phase': 'NOMINAL_OPS'
+        }
+
+        decision_tracer._record_anomaly_for_reporting(decision, {})
+
+        call_kwargs = mock_generator.record_anomaly.call_args[1]
+        assert call_kwargs['severity'] == 'MEDIUM'
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_with_metadata(self, mock_get_generator, decision_tracer):
+        mock_generator = Mock()
+        mock_get_generator.return_value = mock_generator
+
+        decision = {
+            'anomaly_type': 'test_fault',
+            'severity_score': 0.7,
+            'detection_confidence': 0.9,
+            'mission_phase': 'NOMINAL_OPS',
+            'recurrence_info': {'count': 2, 'total_in_window': 1}
+        }
+
+        metadata = {'sensor_id': 'SENSOR_001', 'component': 'thermal'}
+
+        decision_tracer._record_anomaly_for_reporting(decision, metadata)
+
+        call_kwargs = mock_generator.record_anomaly.call_args[1]
+        telemetry = call_kwargs['telemetry_data']
+        assert 'sensor_id' in telemetry
+        assert telemetry['sensor_id'] == 'SENSOR_001'
+        assert 'component' in telemetry
+        assert telemetry['component'] == 'thermal'
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_missing_optional_fields(self, mock_get_generator, decision_tracer):
+        mock_generator = Mock()
+        mock_get_generator.return_value = mock_generator
+
+        decision = {
+            'anomaly_type': 'minimal_fault',
+            'mission_phase': 'NOMINAL_OPS'
+        }
+
+        decision_tracer._record_anomaly_for_reporting(decision, {})
+
+        call_kwargs = mock_generator.record_anomaly.call_args[1]
+        assert call_kwargs['severity'] == 'MEDIUM'
+        assert call_kwargs['confidence'] == 0.0
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_exception_handling(self, mock_get_generator, decision_tracer, caplog):
+        mock_get_generator.side_effect = Exception("Report generator unavailable")
+
+        decision = {
+            'anomaly_type': 'test_fault',
+            'severity_score': 0.7,
+            'mission_phase': 'NOMINAL_OPS'
+        }
+
+        with caplog.at_level(logging.WARNING):
+            decision_tracer._record_anomaly_for_reporting(decision, {})
+
+        assert "Failed to record anomaly for reporting" in caplog.text
+
+    @patch('anomaly_agent.phase_aware_handler.get_report_generator')
+    def test_record_anomaly_generator_method_fails(self, mock_get_generator, decision_tracer, caplog):
+        mock_generator = Mock()
+        mock_generator.record_anomaly.side_effect = Exception("Database connection failed")
+        mock_get_generator.return_value = mock_generator
+
+        decision = {
+            'anomaly_type': 'test_fault',
+            'severity_score': 0.6,
+            'mission_phase': 'NOMINAL_OPS'
+        }
+
+        with caplog.at_level(logging.WARNING):
+            decision_tracer._record_anomaly_for_reporting(decision, {})
+
+        assert "Failed to record anomaly for reporting" in caplog.text
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v', '--cov=anomaly_agent.phase_aware_handler', '--cov-report=html'])

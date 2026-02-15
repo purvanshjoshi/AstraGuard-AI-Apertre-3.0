@@ -12,11 +12,13 @@ import re
 import logging
 import sqlite3
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Any, Union
-import asyncio
-
+from fastapi import APIRouter, HTTPException, Request, Depends, Query
+from pydantic import BaseModel, EmailStr, Field, field_validator, validator
+from fastapi.responses import JSONResponse
 import aiosqlite
 import aiofiles
 
@@ -60,6 +62,9 @@ DB_PATH: Path = DATA_DIR / "contact_submissions.db"
 NOTIFICATION_LOG: Path = DATA_DIR / "contact_notifications.log"
 CONTACT_EMAIL: str = os.getenv("CONTACT_EMAIL", "support@astraguard.ai")
 SENDGRID_API_KEY: Optional[str] = os.getenv("SENDGRID_API_KEY", None)
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 
 _raw_trusted: str = os.getenv("TRUSTED_PROXIES", "")
@@ -224,6 +229,8 @@ _init_db_sync()
 
 _in_memory_limiter: InMemoryRateLimiter = InMemoryRateLimiter()
 
+# Initialize database
+_init_db_sync()
 
 async def check_rate_limit(ip_address: str) -> tuple[bool, dict[str, Any]]:
     """Check rate limit and return status with metadata"""
@@ -276,6 +283,7 @@ async def save_submission(
         await conn.commit()
         return cursor.lastrowid
 
+async def log_notification(submission: ContactSubmission, submission_id: Optional[int]) -> None:
 
 async def log_notification(
     submission: ContactSubmission,
@@ -298,10 +306,10 @@ async def log_notification(
         await f.write(json.dumps(log_entry) + "\n")
 
 
-async def send_email_notification(
-    submission: ContactSubmission,
-    submission_id: Optional[int],
-) -> None:
+async def send_email_notification(submission: ContactSubmission, submission_id: Optional[int]) -> None:
+
+    """Send email notification (placeholder for SendGrid integration)"""
+    # TODO: Implement SendGrid integration when SENDGRID_API_KEY is set
     if SENDGRID_API_KEY:
         try:
             pass
@@ -464,7 +472,7 @@ async def get_submissions(
         where_clause = "WHERE status = ?"
         params.append(status_filter)
 
-    count_query = f"SELECT COUNT(*) AS total FROM contact_submissions {where_clause}"
+    count_query = f"SELECT COUNT(*) AS total FROM contact_submissions {where_clause}"  # nosec B608
     select_query = f"""
         SELECT id, name, email, phone, subject, message,
                ip_address, user_agent, submitted_at, status
@@ -472,7 +480,7 @@ async def get_submissions(
         {where_clause}
         ORDER BY submitted_at DESC
         LIMIT ? OFFSET ?
-    """
+    """  # nosec B608
 
     async with aiosqlite.connect(DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
