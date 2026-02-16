@@ -30,7 +30,7 @@ Path("feedback_processed.json").write_text(content, encoding='utf-8')
 - Read operations: 0.15ms per operation (500 iterations, 50 events)
 - Write operations: 0.13ms per operation (500 iterations, 50 events)
 - Path.read_text() vs open(): **0.0% difference** - equally fast
-- json.dumps() + write_text() vs json.dump(): **193% faster** (current is better)
+- json.dumps() + write_text() vs json.dump(): **60.75% faster** (current is better)
 
 **Conclusion:** Already optimal. Using `Path.read_text()` and pre-serializing JSON is the best approach.
 
@@ -193,7 +193,7 @@ If performance becomes an issue in the future, consider:
 
 2. **Progress Indicators**: For long-running subprocess operations
    - Add visual feedback during telemetry/simulation runs
-   - Uses `rich` or `tqdm` for progress bars
+   - Use `rich` or `tqdm` for progress bars
 
 3. **Configuration Caching**: Cache component health results
    - Only if health checks become expensive
