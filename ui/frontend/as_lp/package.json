@@ -12,7 +12,7 @@
     "@emotion/is-prop-valid": "^1.4.0",
     "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.2.2",
-    "@nuxt/kit": "^4.2.2",
+    "@nuxt/kit": "^4.3.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",
