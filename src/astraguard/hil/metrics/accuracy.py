@@ -12,8 +12,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-logger = logging.getLogger(__name__)
-
 
 class FaultState(str, Enum):
     """Fault states for ground truth."""
@@ -165,43 +163,42 @@ class AccuracyCollector:
             # Per-fault-type breakdown
             by_fault = self._calculate_per_fault_stats()
 
-        # Confidence statistics with error handling
-        confidences = [c.confidence for c in self.agent_classifications]
+            # Confidence statistics with error handling
+            confidences = [c.confidence for c in self.agent_classifications]
 
-        try:
-            if confidences:
-                confidence_mean = float(np.mean(confidences))
-                confidence_std = float(np.std(confidences))
-                
-                # Check for invalid values
-                if np.isnan(confidence_mean) or np.isinf(confidence_mean):
-                    logger.warning(
-                        "Invalid confidence mean calculated (NaN or Inf), defaulting to 0.0",
-                        extra={"confidences_sample": confidences[:5]}
-                    )
+            try:
+                if confidences:
+                    confidence_mean = float(np.mean(confidences))
+                    confidence_std = float(np.std(confidences))
+                    
+                    # Check for invalid values
+                    if np.isnan(confidence_mean) or np.isinf(confidence_mean):
+                        logger.warning(
+                            "Invalid confidence mean calculated (NaN or Inf), defaulting to 0.0",
+                            extra={"confidences_sample": confidences[:5]}
+                        )
+                        confidence_mean = 0.0
+                    
+                    if np.isnan(confidence_std) or np.isinf(confidence_std):
+                        logger.warning(
+                            "Invalid confidence std calculated (NaN or Inf), defaulting to 0.0",
+                            extra={"confidences_sample": confidences[:5]}
+                        )
+                        confidence_std = 0.0
+                else:
                     confidence_mean = 0.0
-                
-                if np.isnan(confidence_std) or np.isinf(confidence_std):
-                    logger.warning(
-                        "Invalid confidence std calculated (NaN or Inf), defaulting to 0.0",
-                        extra={"confidences_sample": confidences[:5]}
-                    )
                     confidence_std = 0.0
-            else:
+                    
+            except (ValueError, TypeError) as e:
+                logger.error(
+                    f"Failed to calculate confidence statistics: {e}",
+                    extra={
+                        "confidences_count": len(confidences),
+                        "operation": "accuracy_stats"
+                    }
+                )
                 confidence_mean = 0.0
                 confidence_std = 0.0
-                
-        except (ValueError, TypeError) as e:
-            logger.error(
-                f"Failed to calculate confidence statistics: {e}",
-                extra={
-                    "confidences_count": len(confidences),
-                    "operation": "accuracy_stats"
-                }
-            )
-            confidence_mean = 0.0
-            confidence_std = 0.0
-
 
             return {
                 "total_classifications": total,
@@ -278,7 +275,7 @@ class AccuracyCollector:
                     "true_positives": tp,
                     "false_positives": fp,
                     "false_negatives": fn,
-                    "total_predictions": len(predictions),
+                    "total_predictions": len(data['predictions']),
                     "correct_predictions": tp,
                     "avg_confidence": (
                         float(np.mean(confidences))
@@ -336,43 +333,66 @@ class AccuracyCollector:
     def get_stats_by_satellite(self) -> Dict[str, Dict[str, Any]]:
         """
         Calculate accuracy statistics per satellite.
+        Optimized to iterate through classifications only once.
         """
         try:
-            by_satellite = defaultdict(list)
-
-            # Calculate average confidence with error handling
-            try:
-                avg_confidence = (
-                    float(np.mean([c.confidence for c in classifications]))
-                    if classifications
-                    else 0.0
-                )
+            by_satellite = defaultdict(lambda: {
+                'total': 0,
+                'correct': 0,
+                'confidences': []
+            })
+            
+            # Single pass through classifications
+            for c in self.agent_classifications:
+                sat_data = by_satellite[c.satellite_id]
+                sat_data['total'] += 1
+                if c.is_correct:
+                    sat_data['correct'] += 1
+                sat_data['confidences'].append(c.confidence)
+            
+            # Build final stats dictionary
+            stats = {}
+            for sat_id, data in by_satellite.items():
+                total = data['total']
+                correct = data['correct']
                 
-                if np.isnan(avg_confidence) or np.isinf(avg_confidence):
+                # Calculate average confidence with error handling
+                try:
+                    confidences = data['confidences']
+                    avg_confidence = (
+                        float(np.mean(confidences))
+                        if confidences
+                        else 0.0
+                    )
+                    
+                    if np.isnan(avg_confidence) or np.isinf(avg_confidence):
+                        logger.warning(
+                            f"Invalid average confidence for satellite '{sat_id}', using 0.0",
+                            extra={
+                                "satellite_id": sat_id,
+                                "classifications_count": total
+                            }
+                        )
+                        avg_confidence = 0.0
+                        
+                except (ValueError, TypeError) as e:
                     logger.warning(
-                        f"Invalid average confidence for satellite '{sat_id}', using 0.0",
-                        extra={
-                            "satellite_id": sat_id,
-                            "classifications_count": len(classifications)
-                        }
+                        f"Failed to calculate average confidence for satellite '{sat_id}': {e}",
+                        extra={"satellite_id": sat_id, "classifications_count": total}
                     )
                     avg_confidence = 0.0
-                    
-            except (ValueError, TypeError) as e:
-                logger.warning(
-                    f"Failed to calculate average confidence for satellite '{sat_id}': {e}",
-                    extra={"satellite_id": sat_id, "classifications_count": len(classifications)}
-                )
-                avg_confidence = 0.0
 
-            stats[sat_id] = {
-                "total_classifications": total,
-                "correct_classifications": correct,
-                "accuracy": correct / total if total > 0 else 0.0,
-                "avg_confidence": avg_confidence,
-            }
+                stats[sat_id] = {
+                    "total_classifications": total,
+                    "correct_classifications": correct,
+                    "accuracy": correct / total if total > 0 else 0.0,
+                    "avg_confidence": avg_confidence,
+                }
 
-        return stats
+            return stats
+        except (TypeError, ValueError) as e:
+            logger.exception("Error while calculating satellite statistics")
+            raise
 
 
     def get_confusion_matrix(self) -> Dict[str, Dict[str, int]]:
@@ -581,7 +601,7 @@ class AccuracyCollector:
                 "Binary search failed while finding ground truth fault"
             )
             raise
-
+            
     def reset(self) -> None:
         """Clear all data."""
         self.ground_truth_events.clear()
