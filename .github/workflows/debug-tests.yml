@@ -3,36 +3,24 @@ name: Debug Test Failures
 on:
   workflow_dispatch:
     inputs:
-      test_target:
-        description: 'Test file or directory to run (e.g., tests/test_memory_store.py)'
-        required: true
-        default: 'tests/'
-        type: string
-      verbosity:
-        description: 'Pytest verbosity level'
-        required: true
-        default: '-vv'
-        type: choice
-        options:
-          - '-v'
-          - '-vv'
-          - '-vvv'
-      trace_on_fail:
-        description: 'Enable trace on failure (--trace)'
+      test_path:
+        description: "Path to specific test file (e.g., tests/test_api.py)"
         required: false
-        default: false
-        type: boolean
-      fail_fast:
-        description: 'Stop on first failure (-x)'
+        default: ""
+      verbose:
+        description: "Enable verbose logging"
         required: false
-        default: false
-        type: boolean
+        default: "true"
+      skip_coverage:
+        description: "Skip coverage requirements"
+        required: false
+        default: "true"
 
 jobs:
-  debug-test:
-    name: Debug Test Run
+  debug-tests:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 30
+
     services:
       redis:
         image: redis:7-alpine
@@ -45,86 +33,53 @@ jobs:
           - 6379:6379
 
     steps:
-    - name: Free up disk space
-      run: |
-        echo "Freeing up disk space before checkout..."
-        sudo rm -rf /usr/local/lib/android || true
-        sudo rm -rf /usr/share/dotnet || true
-        sudo rm -rf /opt/ghc || true
-        sudo rm -rf /opt/hostedtoolcache/Python* || true
-        df -h
-    
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip setuptools wheel
-        pip install -r src/config/requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-        pip install -r src/config/requirements-test.txt
-    
-    - name: Wait for Redis
-      run: |
-        python -c "
-        import redis, time, sys, socket
-        for i in range(30):
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(2)
-                result = sock.connect_ex(('localhost', 6379))
-                sock.close()
-                if result == 0:
-                    r = redis.Redis(host='localhost', port=6379, socket_connect_timeout=5, decode_responses=True)
-                    pong = r.ping()
-                    if pong:
-                        print('Redis is ready!')
-                        sys.exit(0)
-            except Exception as e:
-                pass
-            print(f'Waiting for Redis... ({i+1}/30)', flush=True)
-            time.sleep(1)
-        print('ERROR: Redis connection timeout after 30 attempts')
-        sys.exit(1)
-        "
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Construct Pytest Arguments
-      id: args
-      run: |
-        ARGS="${{ inputs.verbosity }}"
-        if [ "${{ inputs.trace_on_fail }}" = "true" ]; then
-          ARGS="$ARGS --trace"
-        fi
-        if [ "${{ inputs.fail_fast }}" = "true" ]; then
-          ARGS="$ARGS -x"
-        fi
-        echo "pytest_args=$ARGS" >> $GITHUB_OUTPUT
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    - name: Run Pytest (Debug Mode)
-      env:
-        REDIS_URL: redis://localhost:6379
-      run: |
-        echo "Running tests on target: ${{ inputs.test_target }}"
-        echo "Arguments: ${{ steps.args.outputs.pytest_args }}"
-        
-        # Capture output to file for artifact upload, but also stream to console
-        pytest ${{ inputs.test_target }} \
-          ${{ steps.args.outputs.pytest_args }} \
-          --capture=no \
-          --tb=long \
-          2>&1 | tee test_output.log
-        
-        # Exit with piped command status
-        exit ${PIPESTATUS[0]}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f "src/config/requirements.txt" ]; then pip install -r src/config/requirements.txt; fi
+          if [ -f "src/config/requirements-test.txt" ]; then pip install -r src/config/requirements-test.txt; fi
 
-    - name: Upload Test Logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: debug-test-logs
-        path: test_output.log
-        retention-days: 7
+      - name: Run Debug Tests
+        env:
+          PYTHONFAULTHANDLER: "1"
+          REDIS_URL: redis://localhost:6379
+        run: |
+          if [ "${{ github.event.inputs.test_path }}" != "" ]; then
+            TARGET="${{ github.event.inputs.test_path }}"
+          else
+            TARGET="tests"
+          fi
+
+          if [ "${{ github.event.inputs.verbose }}" == "true" ]; then
+            VERBOSE="-vv"
+          else
+            VERBOSE=""
+          fi
+
+          ARGS="$VERBOSE --maxfail=1"
+
+          if [ "${{ github.event.inputs.skip_coverage }}" == "true" ]; then
+            pytest $TARGET $ARGS | tee debug-output.log
+          else
+            pytest $TARGET $ARGS --cov=. --cov-report=xml | tee debug-output.log
+          fi
+        continue-on-error: true
+
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-test-artifacts
+          path: |
+            .pytest_cache
+            coverage.xml
+            **/*.log
+            debug-output.log
+          if-no-files-found: ignore
