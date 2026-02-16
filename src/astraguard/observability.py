@@ -70,6 +70,33 @@ def _get_cached_labels(metric: Any, **labels: Any) -> Any:
 
 
 
+# Cache for labeled metrics to avoid repeated label object creation
+# Key: (id(metric), tuple(sorted(label_values)))
+# Value: labeled_metric
+_labeled_metric_cache: Dict[tuple, Any] = {}
+
+
+def _get_cached_labels(metric: Any, **labels: Any) -> Any:
+    """
+    Get or create a cached labeled metric to avoid repeated label object creation.
+    
+    Args:
+        metric: The base metric object (e.g., Histogram, Counter)
+        **labels: Label key-value pairs
+        
+    Returns:
+        The labeled metric object
+    """
+    # Create a hashable key from metric id and label values
+    label_values = tuple(sorted(labels.values()))
+    cache_key = (id(metric), label_values)
+    
+    if cache_key not in _labeled_metric_cache:
+        _labeled_metric_cache[cache_key] = metric.labels(**labels)
+    
+    return _labeled_metric_cache[cache_key]
+
+
 # ============================================================================
 # SAFE METRIC INITIALIZATION (handles test reruns gracefully)
 # ============================================================================
@@ -457,10 +484,9 @@ def track_anomaly_detection() -> Generator[None, None, None]:
             ERRORS.labels(type="model_error", endpoint="anomaly_detection").inc()
         raise
     except Exception as e:
-<<<<<<< HEAD
-        duration = time.perf_counter() - start
-        logger.error(f"Anomaly detection failed: {e}")
-=======
+        logger.exception(f"Unexpected anomaly detection failure: {e}")
+        if ERRORS:
+            _get_cached_labels(ERRORS, type=type(e).__name__, endpoint="anomaly_detection").inc()
         raise
 
 
@@ -473,21 +499,12 @@ def track_retry_attempt(endpoint: str) -> Generator[None, None, None]:
         yield
         duration = time.perf_counter() - start
         if RETRY_LATENCY:
-<<<<<<< HEAD
-            _get_cached_labels(RETRY_LATENCY, endpoint=endpoint).observe(duration)
-    except Exception as e:
-        duration = time.perf_counter() - start
-        logger.error(f"Retry attempt failed for {endpoint}: {e}")
-        if ERRORS:
-            _get_cached_labels(ERRORS, type=type(e).__name__, endpoint=endpoint).inc()
-=======
             RETRY_LATENCY.labels(endpoint=endpoint).observe(duration)
     except (ConnectionError, TimeoutError) as e:
         # Expected retry scenarios
         logger.debug(f"Retry needed for {endpoint}: {e}")
         if RETRY_ATTEMPTS:
             RETRY_ATTEMPTS.labels(endpoint=endpoint, outcome="failed").inc()
->>>>>>> f2dc3729acc1978e59e13759d03c72eef2ab2220
         raise
     except Exception as e:
         # Unexpected error during retry
@@ -495,7 +512,6 @@ def track_retry_attempt(endpoint: str) -> Generator[None, None, None]:
         if RETRY_ATTEMPTS:
             RETRY_ATTEMPTS.labels(endpoint=endpoint, outcome="error").inc()
         raise
-
 
 
 
@@ -589,7 +605,6 @@ async def async_track_anomaly_detection() -> AsyncGenerator[None, None]:
 
 
 
-
 @asynccontextmanager
 async def async_track_retry_attempt(endpoint: str) -> AsyncGenerator[None, None]:
     """Async version of track_retry_attempt"""
@@ -599,13 +614,8 @@ async def async_track_retry_attempt(endpoint: str) -> AsyncGenerator[None, None]
         duration = time.perf_counter() - start
         if RETRY_LATENCY:
             _get_cached_labels(RETRY_LATENCY, endpoint=endpoint).observe(duration)
-    except Exception as e:
-        duration = time.perf_counter() - start
-        logger.error(f"Retry attempt failed for {endpoint}: {e}")
-        if ERRORS:
-            _get_cached_labels(ERRORS, type=type(e).__name__, endpoint=endpoint).inc()
+    except Exception:
         raise
-
 
 
 

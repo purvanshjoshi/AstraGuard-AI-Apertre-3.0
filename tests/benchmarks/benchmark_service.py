@@ -1,12 +1,4 @@
 """
-NON-PRODUCTION BENCHMARK UTILITY
-
-This script is a development/testing tool for performance benchmarking.
-It is NOT intended for production use and should not be included in
-runtime deployments or CI pipelines.
-
-This benchmark imports production modules directly and assumes local paths.
-
 Benchmark script for src/api/service.py performance optimizations.
 
 Measures:
@@ -17,7 +9,6 @@ Measures:
 """
 
 import asyncio
-
 import time
 import statistics
 from typing import List, Dict, Any

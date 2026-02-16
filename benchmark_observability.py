@@ -1,18 +1,7 @@
-"""
-NON-PRODUCTION BENCHMARK UTILITY
-
-This script is a development/testing tool for performance benchmarking.
-It is NOT intended for production use and should not be included in
-runtime deployments or CI pipelines.
-
-This benchmark imports production modules directly and assumes local paths.
-
-Standalone benchmark for observability module - Before Optimization
-"""
+"""Standalone benchmark for observability module - Before Optimization"""
 import sys
 import time
 import asyncio
-
 
 # Add src to path
 sys.path.insert(0, 'c:/Users/Rushabh Mahajan/Documents/VS Code/AstraGuard-AI-Apertre-3.0/src')
