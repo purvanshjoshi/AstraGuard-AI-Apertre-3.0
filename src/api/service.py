@@ -84,6 +84,9 @@ from security_engine.contracts import (
 if TYPE_CHECKING:
     from security_engine.predictive_maintenance import PredictiveMaintenanceEngine
 from fastapi.responses import Response
+from core.event_bus import get_event_bus
+from core.events import TelemetryReceived, AnomalyDetected
+from core.event_handlers import register_core_handlers
 from core.metrics import get_metrics_text, get_metrics_content_type
 from core.restart import get_restart_manager
 from core.rate_limiter import RateLimiter, RateLimitMiddleware, get_rate_limit_config
@@ -239,6 +242,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     global redis_client, telemetry_limiter, api_limiter
     
+    # Start Event Bus
+    await get_event_bus().start()
+    
+    # Register Core Handlers
+    register_core_handlers()
+
     from core.shutdown import get_shutdown_manager
     shutdown_manager = get_shutdown_manager()
 
@@ -303,6 +312,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         shutdown_manager.register_cleanup_task(memory_store.save, "memory_store")
 
     yield
+    
+    # Stop Event Bus
+    await get_event_bus().stop()
 
     # Cleanup via manager
     await shutdown_manager.execute_cleanup()
@@ -925,6 +937,16 @@ async def _process_telemetry(telemetry: TelemetryInput, request_start: float) ->
             "wheel_speed": telemetry.wheel_speed or 0.0,
         }
 
+        # Event-driven: Publish TelemetryReceived
+        try:
+            event = TelemetryReceived(
+                telemetry_data=data,
+                source="api_ingestion"
+            )
+            asyncio.create_task(get_event_bus().publish(event))
+        except Exception as e:
+            logger.error(f"Failed to publish telemetry event: {e}")
+
         # Update global latest telemetry
         async with telemetry_lock:
             global latest_telemetry_data
@@ -986,9 +1008,9 @@ async def _process_telemetry(telemetry: TelemetryInput, request_start: float) ->
 
         # Get phase-aware decision if anomaly detected
         if is_anomaly:
-            decision = phase_aware_handler.handle_anomaly(
+            decision = await phase_aware_handler.handle_anomaly(
                 anomaly_type=anomaly_type,
-                severity_score=anomaly_score,
+                severity_score=float(anomaly_score),
                 confidence=0.85,
                 anomaly_metadata={"telemetry": data}
             )
