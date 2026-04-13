@@ -30,7 +30,7 @@ security = [
     "pycryptodome>=3.19.0",
     "boto3>=1.28.0",
     "azure-identity>=1.14.0",
-    "azure-keyvault-keys>=4.8.0",
+    "azure-keyvault-keys>=4.11.0",
     "google-cloud-kms>=2.19.0",
 ]
 
