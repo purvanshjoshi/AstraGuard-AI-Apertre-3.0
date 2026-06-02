@@ -139,6 +139,35 @@ class TelemetryBatch(BaseModel):
         return v
 
 
+class BatchOperation(BaseModel):
+    """Single operation within a batch request."""
+    id: str = Field(..., description="Unique ID for the operation")
+    method: str = Field(..., pattern="^(GET|POST|PUT|DELETE)$", description="HTTP method")
+    path: str = Field(..., description="API path relative to /api/v1")
+    body: Optional[Dict[str, Any]] = Field(None, description="Request body")
+    params: Optional[Dict[str, Any]] = Field(None, description="Query parameters")
+
+
+class BatchRequest(BaseModel):
+    """Generic batch request container."""
+    atomic: bool = Field(False, description="If true, stop on first error. If false, process all.")
+    operations: List[BatchOperation] = Field(..., min_length=1, max_length=100)
+
+
+class BatchOperationResult(BaseModel):
+    """Result of a single batch operation."""
+    id: str
+    status: int
+    data: Optional[Any] = None
+    error: Optional[str] = None
+
+
+class BatchResponse(BaseModel):
+    """Response container for batch results."""
+    results: List[BatchOperationResult]
+    summary: Dict[str, int] = Field(..., description="Summary of successes and failures")
+
+
 class AnomalyResponse(BaseModel):
     """Response from anomaly detection."""
     is_anomaly: bool

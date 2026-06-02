@@ -33,8 +33,9 @@ from state_machine.mission_phase_policy_engine import (
 from config.mission_phase_policy_loader import MissionPhasePolicyLoader
 from core.metrics import ANOMALIES_BY_TYPE
 from anomaly_agent.explainability import build_explanation
-from anomaly.report_generator import get_report_generator
-
+from core.event_bus import get_event_bus
+from core.events import RecoveryInitiated
+import asyncio
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -291,6 +292,22 @@ class PhaseAwareAnomalyHandler:
         
         # Log the decision
         self._log_decision(decision)
+        
+        # Event-driven: Publish RecoveryInitiated if escalation or specific action is needed
+        try:
+            if should_escalate or decision.get('recommended_action') != 'LOG_ONLY':
+                event = RecoveryInitiated(
+                    recovery_plan_id=decision.get('decision_id', str(uuid.uuid4())),
+                    target_component=anomaly_attributes.get('component', 'system'),
+                    steps={
+                        'action': decision.get('recommended_action'),
+                        'reasoning': decision.get('reasoning'),
+                        'escalate_to_safe_mode': should_escalate
+                    }
+                )
+                asyncio.create_task(get_event_bus().publish(event))
+        except Exception as e:
+            logger.error(f"Failed to publish recovery event: {e}")
         
         # Record anomaly for reporting (feedback loop) - async
         await self._record_anomaly_for_reporting(decision, anomaly_metadata)
