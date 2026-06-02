@@ -47,6 +47,7 @@ from security_engine.contracts import (
     PredictionResult,
     TimeSeriesData
 )
+from security_engine.data_augmentation import DataAugmenter
 
 class LSTMPredictor(nn.Module):
     """LSTM model for time-series prediction."""
@@ -178,6 +179,10 @@ class PredictiveMaintenanceEngine:
         try:
             # Prepare data
             df = self._prepare_training_dataframe()
+
+            # Apply data augmentation if necessary
+            augmenter = DataAugmenter()
+            df = augmenter.apply_augmentation_pipeline(df)
 
             for failure_type in FailureType:
                 logger.info(f"Training models for {failure_type.value}")
