@@ -20,16 +20,16 @@
   
 
   <p align="center">
-    <a href="docs/TECHNICAL.md"><strong>📚 Documentation</strong></a> •
-    <a href="docs/TECHNICAL_REPORT.md"><strong>📄 Technical Report</strong></a> •
-    <a href="src/research/"><strong>🧪 Research Lab</strong></a> •
-    <a href="docs/changelogs/CHANGES.md"><strong>📝 Changelog</strong></a>
+    <a href="docs/TECHNICAL.md"><strong>Documentation</strong></a> •
+    <a href="docs/TECHNICAL_REPORT.md"><strong>Technical Report</strong></a> •
+    <a href="src/research/"><strong>Research Lab</strong></a> •
+    <a href="docs/changelogs/CHANGES.md"><strong>Changelog</strong></a>
   </p>
 
   <p align="center">
-    <a href=".github/ISSUE_TEMPLATE/bug_report.yml">🐛 Report Bug</a> •
-    <a href=".github/ISSUE_TEMPLATE/feature_request.yml">✨ Request Feature</a> •
-    <a href="https://chat.whatsapp.com/Ka6WKpDdKIxInvpLBO1nCB">💬 Join WhatsApp Group</a>
+    <a href=".github/ISSUE_TEMPLATE/bug_report.yml">Report Bug</a> •
+    <a href=".github/ISSUE_TEMPLATE/feature_request.yml">Request Feature</a> •
+    <a href="https://chat.whatsapp.com/Ka6WKpDdKIxInvpLBO1nCB">Join WhatsApp Group</a>
   </p>
 
   ---
@@ -40,9 +40,9 @@
 
 ---
 
-## 🌟 Hall of Fame
+## Hall of Fame
 
-**🏆 A huge thank you to all the talented developers who have contributed to AstraGuard AI**
+**A huge thank you to all the talented developers who have contributed to AstraGuard AI**
 
 <a href="https://github.com/sr-857/AstraGuard-AI-Apertre-3.0/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=sr-857/AstraGuard-AI-Apertre-3.0" />
@@ -50,11 +50,11 @@
 
 ### _Want to see your avatar here? [Make your first contribution today!](docs/CONTRIBUTING.md)_
 
-**📋 [View All Contributors](CONTRIBUTORS.md)** | **📊 [Metrics Dashboard](docs/contribution-metrics-dashboard.html)** | **🎖️ [Recognition Program](.github/CONTRIBUTOR_RECOGNITION.md)** | **🏅 [Badge System](docs/CONTRIBUTOR_BADGES.md)**
+**[View All Contributors](CONTRIBUTORS.md)** | **[Metrics Dashboard](docs/contribution-metrics-dashboard.html)** | **[Recognition Program](.github/CONTRIBUTOR_RECOGNITION.md)** | **[Badge System](docs/CONTRIBUTOR_BADGES.md)**
 
 ---
 
-# 🚀 About the Project
+# About the Project
 
 ## *What is AstraGuard AI?*
 
@@ -62,10 +62,10 @@
 
 At its core, AstraGuard AI is:
 
-- **🛡️ A Security Platform**: Built to test applications against simulated threats in controlled environments
-- **🧠 An AI Learning System**: Uses local LLMs (Llama 3/Mistral) to analyze attack surfaces and generate smart payloads
-- **📊 A Monitoring Dashboard**: Provides real-time visualization of security posture and system health
-- **🎓 A Training Ground**: Designed to help learners bridge the gap between theoretical knowledge and real-world security workflows
+- **A Security Platform**: Built to test applications against simulated threats in controlled environments
+- **An AI Learning System**: Uses local LLMs (Llama 3/Mistral) to analyze attack surfaces and generate smart payloads
+- **A Monitoring Dashboard**: Provides real-time visualization of security posture and system health
+- **A Training Ground**: Designed to help learners bridge the gap between theoretical knowledge and real-world security workflows
 
 ## *Why AstraGuard AI?*
 
@@ -75,11 +75,11 @@ Traditional security tools often fall into two categories:
 
 **AstraGuard AI bridges this gap** by providing:
 
-✅ **Real-World Context**: Security operations modeled after actual CubeSat mission phases  
-✅ **Hands-On Learning**: Practical tools with educational guidance built-in  
-✅ **Privacy-First AI**: 100% local processing—no data leaves your machine  
-✅ **Production-Ready Code**: Clean, well-documented codebase suitable for real deployments  
-✅ **Adaptive Intelligence**: Context-aware decisions based on mission phase and historical patterns  
+**Real-World Context**: Security operations modeled after actual CubeSat mission phases  
+**Hands-On Learning**: Practical tools with educational guidance built-in  
+**Privacy-First AI**: 100% local processing—no data leaves your machine  
+**Production-Ready Code**: Clean, well-documented codebase suitable for real deployments  
+**Adaptive Intelligence**: Context-aware decisions based on mission phase and historical patterns  
 
 ### Target Audience
 
@@ -87,14 +87,14 @@ AstraGuard AI is designed for:
 
 | Audience | What They'll Learn | How They'll Benefit |
 |----------|-------------------|---------------------|
-| **🎓 Students** | Security workflows, API design, ML integration | Hands-on experience with real security tools |
-| **👨‍💻 Developers** | Offensive security, payload generation, threat modeling | Understanding of attack surfaces and defense strategies |
-| **🛡️ Security Practitioners** | Automated threat detection, incident response | Practical tools for vulnerability assessment |
-| **🚀 Space Enthusiasts** | CubeSat operations, telemetry analysis | Understanding of satellite security challenges |
+| **Students** | Security workflows, API design, ML integration | Hands-on experience with real security tools |
+| **Developers** | Offensive security, payload generation, threat modeling | Understanding of attack surfaces and defense strategies |
+| **Security Practitioners** | Automated threat detection, incident response | Practical tools for vulnerability assessment |
+| **Space Enthusiasts** | CubeSat operations, telemetry analysis | Understanding of satellite security challenges |
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 <div align="center">
 
@@ -104,31 +104,31 @@ AstraGuard AI is designed for:
 
 </div>
 
-### 📊 Architecture Overview
+### Architecture Overview
 
 AstraGuard AI implements a sophisticated, event-driven architecture for real-time satellite telemetry monitoring and autonomous anomaly recovery. The system leverages vector embeddings, adaptive memory, and AI-powered reasoning to provide intelligent, self-healing capabilities.
 
 ```mermaid
 graph TB
-    subgraph Input["🛰️ Data Ingestion Layer"]
+    subgraph Input["Data Ingestion Layer"]
         A[Telemetry Stream<br/>Pathway Real-time Processing]
     end
     
-    subgraph Processing["⚙️ Processing Layer"]
+    subgraph Processing["Processing Layer"]
         B[Embedding Encoder<br/>Vector Transformation]
         C[Adaptive Memory Store<br/>Context-Aware Storage]
     end
     
-    subgraph Intelligence["🧠 Intelligence Layer"]
+    subgraph Intelligence["Intelligence Layer"]
         D[Anomaly Reasoning Agent<br/>AI-Powered Analysis]
     end
     
-    subgraph Action["⚡ Action Layer"]
+    subgraph Action["Action Layer"]
         E[Response Orchestrator<br/>Action Coordinator]
         F[System Recovery<br/>Self-Healing Mechanisms]
     end
     
-    subgraph Monitoring["📊 Observability"]
+    subgraph Monitoring["Observability"]
         G[Dashboard<br/>Real-time Visualization]
     end
     
@@ -153,9 +153,9 @@ graph TB
     style G fill:#ec4899,stroke:#db2777,stroke-width:3px,color:#fff
 ```
 
-### 🔧 Core Components
+### Core Components
 
-#### 🛰️ **Telemetry Stream (Pathway)**
+#### **Telemetry Stream (Pathway)**
 
 **Purpose**: Real-time data ingestion and stream processing
 
@@ -179,7 +179,7 @@ stream = pathway.io.kafka.read(
 )
 ```
 
-#### 📊 **Embedding Encoder**
+#### **Embedding Encoder**
 
 **Purpose**: Transform raw telemetry into semantic vector representations
 
@@ -208,7 +208,7 @@ index.add(embeddings)
 
 ### Dual-Engine Design
 
-#### 1. 🛡️ Core Security Engine (The Muscle)
+#### 1. Core Security Engine (The Muscle)
 
 **Technology**: Python 3.9+  
 **Purpose**: Executes concrete security operations
@@ -226,7 +226,7 @@ index.add(embeddings)
 - Does exactly what it's told—no surprises
 - Comprehensive logging for audit trails
 
-#### 2. 🧠 AI Intelligence Layer (The Brain)
+#### 2. AI Intelligence Layer (The Brain)
 
 **Technology**: Python (LangChain/Ollama) + Node.js  
 **Purpose**: Analyzes context and makes intelligent decisions
@@ -271,23 +271,23 @@ index.add(embeddings)
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 ### Core Capabilities
 
 | Feature | Description | Technology |
 |---------|-------------|------------|
 | **🤖 AI Threat Assistant** | Local LLM-powered vulnerability analysis using Llama 3 or Mistral models | LangChain + Ollama |
-| **🛡️ Offensive Tooling Suite** | Comprehensive payload generation, injection testing, and security scanning | Python + Scapy + Nmap |
-| **📊 Smart Dashboard** | Real-time visualization of threats, system health, and security metrics | Streamlit + React |
-| **🔬 Research Lab** | Integrated environment for testing security hypotheses and verifying findings | Python + Jupyter |
-| **⚡ Real-Time Streaming** | High-performance telemetry processing with sub-second latency | Pathway |
-| **🧠 Adaptive Memory** | Context-aware decision making based on historical anomaly patterns | Vector embeddings |
-| **🎯 Smart Prioritization** | Intelligent target selection based on exploitability and mission impact | AI reasoning |
-| **🔍 Explainable Anomaly Insights** | Per-anomaly explanations including feature importances, SHAP values, and confidence scores | React + visualization |
-| **📈 Health Monitoring** | Component-level degradation tracking with automated failover | Centralized error handling |
+| **Offensive Tooling Suite** | Comprehensive payload generation, injection testing, and security scanning | Python + Scapy + Nmap |
+| **Smart Dashboard** | Real-time visualization of threats, system health, and security metrics | Streamlit + React |
+| **Research Lab** | Integrated environment for testing security hypotheses and verifying findings | Python + Jupyter |
+| **Real-Time Streaming** | High-performance telemetry processing with sub-second latency | Pathway |
+| **Adaptive Memory** | Context-aware decision making based on historical anomaly patterns | Vector embeddings |
+| **Smart Prioritization** | Intelligent target selection based on exploitability and mission impact | AI reasoning |
+| **Explainable Anomaly Insights** | Per-anomaly explanations including feature importances, SHAP values, and confidence scores | React + visualization |
+| **Health Monitoring** | Component-level degradation tracking with automated failover | Centralized error handling |
 
-### 🚀 Mission-Phase Aware Fault Response
+### Mission-Phase Aware Fault Response
 
 AstraGuard AI understands that **CubeSat operations have different constraints at different stages**. The same anomaly might trigger different responses depending on the current mission phase.
 
@@ -331,7 +331,7 @@ AstraGuard AI understands that **CubeSat operations have different constraints a
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 🛡️ Centralized Error Handling & Graceful Degradation
+### Centralized Error Handling & Graceful Degradation
 
 AstraGuard AI is designed to **never crash**. The system includes a comprehensive error handling layer that ensures resilience under all failure conditions.
 
@@ -343,34 +343,34 @@ AstraGuard AI is designed to **never crash**. The system includes a comprehensiv
 4. **Health Tracking**: Real-time component health exposed to monitoring dashboard
 5. **Smart Fallbacks**: Each component has a defined degraded operating mode
 
-### 🌐 REST API for External Integration
+### REST API for External Integration
 
 AstraGuard AI provides a **production-ready FastAPI server** for programmatic access and integration with external systems.
 
 #### API Features
 
-✅ **Input Validation**: Pydantic models with comprehensive data validation  
-✅ **OpenAPI Documentation**: Interactive Swagger UI at `/docs`  
-✅ **CORS Support**: Ready for web frontend integration  
-✅ **Batch Processing**: Submit 1-1000 telemetry points in a single request  
-✅ **Rate Limiting**: Configurable limits to prevent abuse  
-✅ **Authentication**: API key support for production deployments  
-✅ **Versioning**: `/api/v1/` prefix for future compatibility  
-✅ **100% Test Coverage**: 23/23 tests passing  
+**Input Validation**: Pydantic models with comprehensive data validation  
+**OpenAPI Documentation**: Interactive Swagger UI at `/docs`  
+**CORS Support**: Ready for web frontend integration  
+**Batch Processing**: Submit 1-1000 telemetry points in a single request  
+**Rate Limiting**: Configurable limits to prevent abuse  
+**Authentication**: API key support for production deployments  
+**Versioning**: `/api/v1/` prefix for future compatibility  
+**100% Test Coverage**: 23/23 tests passing  
 
 ---
 
-## 🎯 Project Goals (Apertre-3.0)
+## Project Goals (Apertre-3.0)
 
 As part of **Elite Coders Winter of Code 2026**, AstraGuard AI has clear deliverables and learning objectives:
 
 ### Primary Objectives
 
-- ✅ **Stable AI Security Module**: Build a production-ready AI assistant for intelligent vulnerability detection
-- ✅ **Contributor-Friendly Issues**: Create 20+ well-scoped issues with learning notes
-- ✅ **Comprehensive Documentation**: Improve onboarding and technical docs
-- ✅ **Automated Testing**: Implement CI/CD pipelines
-- ✅ **Production-Ready MVP**: Ship a fully working system
+- **Stable AI Security Module**: Build a production-ready AI assistant for intelligent vulnerability detection
+- **Contributor-Friendly Issues**: Create 20+ well-scoped issues with learning notes
+- **Comprehensive Documentation**: Improve onboarding and technical docs
+- **Automated Testing**: Implement CI/CD pipelines
+- **Production-Ready MVP**: Ship a fully working system
 
 ---
 
@@ -404,7 +404,7 @@ As part of **Elite Coders Winter of Code 2026**, AstraGuard AI has clear deliver
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 AstraGuard-AI/
@@ -429,7 +429,7 @@ AstraGuard-AI/
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -490,7 +490,7 @@ python cli.py dashboard
 
 ---
 
-## 🌐 API Documentation
+## API Documentation
 
 ### Quick Start Example
 
@@ -514,29 +514,29 @@ print(result)
 
 ---
 
-## 👥 Contributing
+## Contributing
 
-We welcome contributions from developers of all skill levels! 🎉
+We welcome contributions from developers of all skill levels!
 
-### 👋 First Time Contributing?
+### First Time Contributing?
 
 Start with a **Good First Issue** - perfect for newcomers!
 
 [![Good First Issues](https://img.shields.io/github/issues/sr-857/AstraGuard-AI-Apertre-3.0/good%20first%20issue?style=for-the-badge&label=Good%20First%20Issues&color=7057ff)](https://github.com/sr-857/AstraGuard-AI-Apertre-3.0/labels/good%20first%20issue)
 
 **What are Good First Issues?**
-- ✅ Well-defined with clear acceptance criteria
-- ✅ Beginner-friendly requiring minimal context  
-- ✅ Completable in 2-4 hours
-- ✅ Include guidance and resources
+- Well-defined with clear acceptance criteria
+- Beginner-friendly requiring minimal context  
+- Completable in 2-4 hours
+- Include guidance and resources
 
-### 📚 Contribution Resources
+### Contribution Resources
 
 - **[Contributing Guide](docs/CONTRIBUTING.md)** - Full guidelines and workflow
 - **[Good First Issue Criteria](docs/GOOD_FIRST_ISSUE_CRITERIA.md)** - How issues are selected
 - **[Code of Conduct](docs/CODE_OF_CONDUCT.md)** - Community standards
 
-### 💡 How to Get Started
+### How to Get Started
 
 1. **Find an issue** you want to work on
 2. **Comment** on the issue to claim it
@@ -550,7 +550,7 @@ Start with a **Good First Issue** - perfect for newcomers!
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 ### Core Documentation
 - **[Getting Started](docs/GETTING_STARTED.md)** - Setup and installation guide
@@ -565,7 +565,7 @@ Start with a **Good First Issue** - perfect for newcomers!
 
 ---
 
-## 📞 Community & Support
+## Community & Support
 
 - **WhatsApp**: [Join Group](https://chat.whatsapp.com/Ka6WKpDdKIxInvpLBO1nCB)
 - **GitHub Discussions**: [discussions](https://github.com/sr-857/AstraGuard-AI/discussions)
@@ -573,7 +573,7 @@ Start with a **Good First Issue** - perfect for newcomers!
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
@@ -581,14 +581,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
   
-  ### 🌟 Star History
+  ### Star History
   
   [![Star History Chart](https://api.star-history.com/svg?repos=sr-857/AstraGuard-AI&type=Date)](https://star-history.com/#sr-857/AstraGuard-AI&Date)
   
   ---
   
   <sub>Part of <strong>Elite Coders Winter of Code '26</strong></sub><br>
-  <sub>Made with ❤️ by the **AstraGuard AI Team**</sub>
+  <sub>Made by the **AstraGuard AI Team**</sub>
   
   <br>
   
