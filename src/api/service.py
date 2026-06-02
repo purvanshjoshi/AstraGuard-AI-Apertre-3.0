@@ -11,7 +11,7 @@ from typing import List, Optional, Any, Union, Dict, TYPE_CHECKING
 from datetime import datetime, timedelta
 from collections import deque
 from asyncio import Lock
-from fastapi import FastAPI, HTTPException, status, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, status, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import JSONResponse
@@ -53,6 +53,9 @@ from api.models import (
     FeedbackLabel,
     FeedbackPendingItem,
     FeedbackPendingResponse,
+    BatchRequest,
+    BatchResponse,
+    BatchOperationResult,
 )
 from core.auth import (
     get_auth_manager,
@@ -465,38 +468,50 @@ def create_response(status: str, data: Optional[Dict[str, Any]] = None, **kwargs
     return response
 
 
-async def process_telemetry_batch(telemetry_list: List[Dict[str, Any]]) -> Dict[str, int]:
-    """Process a batch of telemetry data and return aggregated results."""
-    processed_count: int = 0
-    anomalies_detected: int = 0
-    detected_anomalies: List[Any] = []
-
-    detected_anomalies: List[Any] = [] # Fixed: Initialize list
-    detected_anomalies: List[str] = []
-    detected_anomalies: List[Any] = []
-
-    for telemetry in telemetry_list:
-        try:
-            # Process individual telemetry (extracted from submit_telemetry logic)
+async def process_telemetry_batch(telemetry_list: List[TelemetryInput]) -> BatchAnomalyResponse:
+    """Process a batch of telemetry data concurrently and return aggregated results."""
+    start_time = time.time()
+    
+    # Run all telemetry processing concurrently
+    tasks = [_process_telemetry(t, start_time) for t in telemetry_list]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    processed_count = 0
+    anomalies_detected = 0
+    processed_results: List[AnomalyResponse] = []
+    
+    for result in results:
+        if isinstance(result, Exception):
+            logger.error(f"Error processing telemetry in batch: {result}")
+            # Create a minimal error response
+            processed_results.append(AnomalyResponse(
+                is_anomaly=False,
+                anomaly_score=0.0,
+                anomaly_type="processing_error",
+                severity_score=0.0,
+                severity_level="LOW",
+                mission_phase="UNKNOWN",
+                recommended_action="RETRY",
+                escalation_level="NO_ACTION",
+                is_allowed=True,
+                allowed_actions=[],
+                should_escalate_to_safe_mode=False,
+                confidence=0.0,
+                reasoning=f"Processing failed: {str(result)}",
+                recurrence_count=0,
+                timestamp=datetime.now()
+            ))
+        elif isinstance(result, AnomalyResponse):
             processed_count += 1
-            
-            # Collect detected anomalies
-            # Note: This function appears incomplete in original code
-            # Keeping minimal implementation for now
-            
-        except Exception as e:
-            logger.error(f"Failed to process telemetry item: {e}")
-            continue
-    
-    # Store all anomalies at once with lock (more efficient than multiple appends)
-    if detected_anomalies:
-        async with anomaly_lock:
-            anomaly_history.extend(detected_anomalies)
-    
-    return {
-        "processed": processed_count,
-        "anomalies_detected": anomalies_detected
-    }
+            if result.is_anomaly:
+                anomalies_detected += 1
+            processed_results.append(result)
+
+    return BatchAnomalyResponse(
+        total_processed=processed_count,
+        anomalies_detected=anomalies_detected,
+        results=processed_results
+    )
 
 # ============================================================================
 # API Endpoints
@@ -818,8 +833,9 @@ async def restart_system(
     }
 
 
-@app.post("/api/v1/telemetry", response_model=AnomalyResponse, status_code=status.HTTP_200_OK)
-async def submit_telemetry(telemetry: TelemetryInput, current_user: User = Depends(require_operator)) -> AnomalyResponse:
+
+@app.get("/api/v1/system/diagnostics", response_model=Dict[str, Any], status_code=status.HTTP_200_OK)
+async def get_system_diagnostics(current_user: User = Depends(require_operator)) -> Dict[str, Any]:
     """
     Get detailed system diagnostics.
     
@@ -894,6 +910,102 @@ async def submit_telemetry(telemetry: TelemetryInput, current_user: User = Depen
         ) from e
 
 
+@app.post("/api/v1/batch", response_model=BatchResponse, tags=["batch"])
+async def process_batch_request(
+    request: BatchRequest,
+    api_key: APIKey = Depends(get_api_key)
+) -> BatchResponse:
+    """
+    Execute multiple API operations in a single batch request.
+    
+    Supports "atomic" mode (stop on error) or best-effort.
+    Currently supports GET/POST methods for white-listed internal paths.
+    """
+    results: List[BatchOperationResult] = []
+    success_count = 0
+    failure_count = 0
+
+    # Whitelist of allowed paths for batching (security precaution)
+    ALLOWED_PATHS = {
+        "/api/v1/telemetry", "/api/v1/anomaly", "/api/v1/config", 
+        "/api/v1/status", "/api/v1/system/status"
+    }
+
+    start_time = time.time()
+    
+    for op in request.operations:
+        # Basic security check
+        # Normalize path to ignore trailing slash/params for check
+        clean_path = op.path.split('?')[0]
+        if not any(clean_path.startswith(allowed) for allowed in ALLOWED_PATHS):
+            error_res = BatchOperationResult(
+                id=op.id, 
+                status=403, 
+                error=f"Path {op.path} not allowed in batch"
+            )
+            results.append(error_res)
+            failure_count += 1
+            if request.atomic:
+                break
+            continue
+
+        try:
+            # Dispatch logic: Map operation to internal function or simulating request
+            # For this implementation, we will route known paths to their handlers directly
+            # to avoid overhead of full internal HTTP loopback if possible, 
+            # or use internal client if needed. 
+            # Direct handler call is faster but complex to map generic request.
+            # We will switch on known major endpoints for optimization.
+            
+            result_data = None
+            status_code = 200
+            
+            if op.path.startswith("/api/v1/telemetry") and op.method == "POST":
+                # Convert body dict to model
+                telemetry_input = TelemetryInput(**op.body) if op.body else None
+                if telemetry_input:
+                    # Direct call to internal logic
+                    anomaly_res = await _process_telemetry(telemetry_input, time.time())
+                    result_data = anomaly_res.dict()
+                else:
+                    raise ValueError("Missing body for telemetry")
+            
+            elif (op.path.startswith("/api/v1/status") or op.path.startswith("/api/v1/system/status")) and op.method == "GET":
+                # Use internal helper for system status
+                status_res = await _get_system_status()
+                result_data = status_res.dict()
+
+            else:
+                 # Fallback: Operation not optimized for direct batching yet
+                 status_code = 501
+                 raise NotImplementedError(f"Operation {op.method} {op.path} not supported in batch yet")
+
+            results.append(BatchOperationResult(id=op.id, status=status_code, data=result_data))
+            success_count += 1
+
+        except Exception as e:
+            logger.error(f"Batch operation {op.id} failed: {e}")
+            failure_count += 1
+            results.append(BatchOperationResult(id=op.id, status=500, error=str(e)))
+            
+            if request.atomic:
+                logger.info("Batch processing stopped due to atomic flag")
+                break
+
+    return BatchResponse(
+        results=results,
+        summary={
+            "total": len(request.operations),
+            "success": success_count,
+            "failure": failure_count,
+            "latency_ms": (time.time() - start_time) * 1000
+        }
+    )
+
+
+
+
+
 @app.post("/api/v1/telemetry", response_model=AnomalyResponse, status_code=status.HTTP_200_OK)
 async def submit_telemetry(telemetry: TelemetryInput, current_user: User = Depends(require_operator)):
     """
@@ -905,7 +1017,7 @@ async def submit_telemetry(telemetry: TelemetryInput, current_user: User = Depen
         AnomalyResponse with detection results and recommended actions
     """
     request_start = time.time()
-    return await _process_single_telemetry(telemetry, request_start)
+    return await _process_telemetry(telemetry, request_start)
 
 
 
@@ -1086,49 +1198,7 @@ async def submit_telemetry_batch(batch: TelemetryBatch, current_user: User = Dep
         BatchAnomalyResponse with aggregated results
     """
     # Process telemetry in parallel using internal function to avoid endpoint overhead
-    request_start = time.time()
-    tasks = [_process_single_telemetry(telemetry, request_start) for telemetry in batch.telemetry]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # Handle any exceptions that occurred during processing
-    processed_results = []
-    anomalies_detected = 0
-
-    for i, result in enumerate(results):
-        if isinstance(result, Exception):
-            # Log the error and create a failed response
-            logger.error(f"Failed to process telemetry {i}: {result}")
-            # Create a minimal error response
-            error_response = AnomalyResponse(
-                is_anomaly=False,
-                anomaly_score=0.0,
-                anomaly_type="processing_error",
-                severity_score=0.0,
-                severity_level="LOW",
-                mission_phase=state_machine.get_current_phase().value if state_machine else "UNKNOWN",
-                recommended_action="RETRY",
-                escalation_level="NO_ACTION",
-                is_allowed=True,
-                allowed_actions=[],
-                should_escalate_to_safe_mode=False,
-                confidence=0.0,
-                reasoning=f"Processing failed: {str(result)}",
-                recurrence_count=0,
-                timestamp=datetime.now()
-            )
-            processed_results.append(error_response)
-        else:
-            # Type narrowing: result is AnomalyResponse after excluding BaseException
-            anomaly_result: AnomalyResponse = result
-            processed_results.append(anomaly_result)
-            if anomaly_result.is_anomaly:
-                anomalies_detected += 1
-
-    return BatchAnomalyResponse(
-        total_processed=len(processed_results),
-        anomalies_detected=anomalies_detected,
-        results=processed_results
-    )
+    return await process_telemetry_batch(batch.telemetry)
 
 
 
@@ -1138,6 +1208,11 @@ async def get_status(api_key: APIKey = Depends(get_api_key)) -> SystemStatus:
 
     Requires API key authentication with 'read' permission.
     """
+    return await _get_system_status()
+
+
+async def _get_system_status() -> SystemStatus:
+    """Internal function to get system status."""
     assert state_machine is not None
     
     health_monitor = get_health_monitor()
@@ -1149,7 +1224,6 @@ async def get_status(api_key: APIKey = Depends(get_api_key)) -> SystemStatus:
         if "memory_store" in components:
             components["memory_store"]["status"] = "DEGRADED"
             components["memory_store"]["details"] = "ConnectionRefusedError: Chaos Injection"
-
 
     return SystemStatus(
         status="healthy" if all(
