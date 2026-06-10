@@ -29,6 +29,8 @@ from core.metrics import (
     ANOMALY_DETECTION_LATENCY,
 )
 import time
+from core.event_bus import get_event_bus
+from core.events import AnomalyDetected
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -594,6 +596,17 @@ async def detect_anomaly(data: Dict[str, Any]) -> Tuple[bool, float]:
                     time.time() - start_time
                 )
 
+                # Event-driven: Publish AnomalyDetected event
+                try:
+                    event = AnomalyDetected(
+                        anomaly_score=float(score),
+                        is_anomaly=bool(is_anomalous),
+                        details=data
+                    )
+                    asyncio.create_task(get_event_bus().publish(event))
+                except Exception as e:
+                    logger.error(f"Failed to publish anomaly event: {e}")
+
                 return bool(is_anomalous), float(score)
             
             except asyncio.TimeoutError as e:
@@ -686,6 +699,17 @@ async def detect_anomaly(data: Dict[str, Any]) -> Tuple[bool, float]:
         ANOMALY_DETECTION_LATENCY.labels(detector_type="heuristic").observe(
             time.time() - start_time
         )
+        
+        # Event-driven: Publish AnomalyDetected event
+        try:
+            event = AnomalyDetected(
+                anomaly_score=score,
+                is_anomaly=is_anomalous,
+                details=data
+            )
+            asyncio.create_task(get_event_bus().publish(event))
+        except Exception as e:
+            logger.error(f"Failed to publish anomaly event: {e}")
 
         return is_anomalous, score
 
